@@ -21,3 +21,5 @@
 - A ordenação de cada comando é representada ao usuário utilizando efeito de "fade in".
 
 *Como o projeto ainda é bem embrionário, ainda estamos discutindo como funcionarão os comandos exatamente. Isto é só um modelo inicial para discutir por onde começar.
+
+Docs de modelagem do projeto: https://docs.google.com/document/d/1N03XUGKpEOGp9n7LDnz-AWAoCUY3QkO5HKESeCYGhGo/edit?usp=sharing
