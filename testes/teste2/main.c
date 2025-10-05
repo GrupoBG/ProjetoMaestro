@@ -21,16 +21,16 @@ typedef struct {
     int radius;
     int partition;	// Diz a qual particao o circulo pertence. partition<0 -> invalido
 
-    int starting_tick; // Diz qual tick o circulo inicia
+    int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
 
     int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
     SDL_Color color;
 } Circle;
 
-
 SDL_mutex* mutex_circle_array = NULL; 
 SDL_mutex* mutex_state = NULL;
 SDL_mutex* mutex_ticks_counter = NULL;
+
 
 // Estado do jogo, usado por todas as threads
 int tick_counter = 0;
@@ -43,7 +43,7 @@ int partiture_end = 1999;
 
 // Array de circulos na memoria compartilhada, usando vetor circular
 // usado para indicar quantos circulos estao presentes na tela
-Circle circle_array[100];
+Circle circle_array[10];
 int circle_array_begin = 0;
 int circle_array_end = 0;
 
@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
     srand(time(NULL));  // Gera chave aleatoria
 
     // Inicia globais
-    initiate_circle_array(circle_array, 100);
+
     mutex_circle_array = SDL_CreateMutex();
     mutex_state = SDL_CreateMutex();
     mutex_ticks_counter = SDL_CreateMutex();
@@ -94,6 +94,9 @@ int main(int argc, char* argv[]) {
 	SDL_DestroyMutex(mutex_state);
         return -3;
     }
+
+    initiate_circle_array(circle_array, 10);
+
 	/*	Iniciacao do SDL	*/
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -154,10 +157,9 @@ int main(int argc, char* argv[]) {
     srand(time(NULL));  // Geracao aleatoria
 
     int score = 0;
-    int tickTime = 17;
+    Uint32 tickTime = 17;
 
 
-    Uint32 start_time = SDL_GetTicks();
     SDL_Event event;
 
     	/*	Execucao	*/
@@ -166,13 +168,15 @@ int main(int argc, char* argv[]) {
     while (state) {
 	SDL_UnlockMutex(mutex_state);
 
-			/*	Conta tempo		*/
+	/*
+		Conta tempo
         Uint32 current_time = SDL_GetTicks();
         if (current_time - start_time >= GAME_DURATION) {
 		SDL_LockMutex(mutex_state);
         	state = 0;  // Termina o jogo apos X segundos
 		SDL_UnlockMutex(mutex_state);
         }
+	*/
 
 			/*      Desenho         */
 	// Fundo
@@ -181,7 +185,7 @@ int main(int argc, char* argv[]) {
 
 	// Circulos
 	SDL_LockMutex(mutex_circle_array);
-	for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%100)){
+	for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%10)){
 
 		// Atualiza circulos com ticks
 		if(circle_array[i].remaining_ticks >=0){
@@ -203,8 +207,21 @@ int main(int argc, char* argv[]) {
 	}
 	SDL_UnlockMutex(mutex_circle_array);
 
+
+	// Linhas
+	SDL_SetRenderDrawColor(renderer, 0xFF,0xFF,0xFF,0xFF);
+
+	SDL_Rect line1 = {PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
+	SDL_Rect line2 = {2*PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
+
+	SDL_RenderFillRect(renderer, &line1);
+	SDL_RenderFillRect(renderer, &line2);
+
 	// Mostra desenho
 	SDL_RenderPresent(renderer);
+
+
+	while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
 
 			/*	Checa eventos		*/
 	int isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
@@ -226,13 +243,14 @@ int main(int argc, char* argv[]) {
 						printf("Nao houve colisao!\n");
 						break;
 					default:
-						printf("colisao bem-sucedida!\n");
+						printf("Colisao bem-sucedida!\n");
 				}
 				break;
 	
         	}
 	}
 	else{
+		tickTime = 17;
 		SDL_LockMutex(mutex_ticks_counter);
 		++tick_counter;       // Incrementa ticks
 		SDL_UnlockMutex(mutex_ticks_counter);
@@ -242,6 +260,8 @@ int main(int argc, char* argv[]) {
     }
     SDL_UnlockMutex(mutex_state);
     printf("Fim de Jogo! Sua pontuacao e: %d\n", score);
+
+    //SDL_WaitThread(partitions, NULL);
 
 FIM:
     if (partitions){
@@ -283,11 +303,9 @@ void generate_random_circle(Circle* circle) {
     circle->partition = rand() % 3;	// Define particao
 
 
-    SDL_LockMutex(mutex_ticks_counter);
-    circle->starting_tick = tick_counter + (rand() % 301); // Circulos sao gerados em ate no maximo 5 segundos
-    SDL_UnlockMutex(mutex_ticks_counter);
+    circle->starting_tick = 30 + (rand() % 30);
 
-    circle-> remaining_ticks = 30 + (rand() % 151); // Circulos no intervalo de [0,5s;3s]
+    circle-> remaining_ticks = 60 + (rand() % 60); // Circulos no intervalo de [1s;2s]
 
     // Movido pra cima para ser usado em circle->x e circle->y
     circle->radius = rand() % 50 + 20;  // Raio entre 20 e 70 pixels
@@ -317,7 +335,7 @@ int check_collision_circle(int* score) {
 
 
     SDL_LockMutex(mutex_circle_array);
-    for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%100)){
+    for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%10)){
 	int dx = mouse_x - circle_array[i].x;
 	int dy = mouse_y - circle_array[i].y;
 
@@ -337,7 +355,7 @@ int check_collision_circle(int* score) {
 
 // Enche array com circulos vazios
 void initiate_circle_array(Circle* array, int array_size){
-        for (int i = 0; i < 100; i++){
+	for (int i = 0; i < array_size; i++){
 
                 circle_array[i].x = circle_array[i].y = circle_array[i].radius =
 							circle_array[i].partition = circle_array[i].remaining_ticks = INT_MIN;
@@ -356,25 +374,38 @@ void fill_circle_array(Circle* array, int array_size){
 // Rotina da thread que lida com particoes e criacao de circulos no array
 int partitions_routine(void* data){
 
+	fill_circle_array(partiture, 2000);
+
+	SDL_LockMutex(mutex_ticks_counter);
+        int now_tick = tick_counter;
+        SDL_UnlockMutex(mutex_ticks_counter);
+
 	SDL_LockMutex(mutex_state);
         while(state){
 		SDL_UnlockMutex(mutex_state);
 
-
 		// Se array de circulos nao estiver cheio
 		SDL_LockMutex(mutex_circle_array);
-                if ( ((circle_array_end +1) %100) != circle_array_begin){
-			if( tick_counter >= partiture[partiture_next].starting_tick){
+                if ( ((circle_array_end +1) %10) != circle_array_begin){
+
+			SDL_LockMutex(mutex_ticks_counter);
+			if( tick_counter >= (now_tick + partiture[partiture_next].starting_tick)){
+				now_tick = tick_counter;
+				SDL_UnlockMutex(mutex_ticks_counter);
+
 				circle_array[circle_array_end] = partiture[partiture_next];
-			
 				++partiture_next;
 				++circle_array_end;
+				circle_array_end %= 10;
 			}
+			SDL_UnlockMutex(mutex_ticks_counter);
                 }
                 SDL_UnlockMutex(mutex_circle_array);
 
 		if(partiture_next > partiture_end){
+			SDL_LockMutex(mutex_state);
 			state = 0;
+			SDL_UnlockMutex(mutex_state);
 		}
 
 		SDL_LockMutex(mutex_state);
