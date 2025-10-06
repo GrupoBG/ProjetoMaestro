@@ -20,6 +20,7 @@ typedef struct {
 
     int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
 
+    int base_ticks; // Diz quantidade de tempo que circulo deve ficar na tela em ticks
     int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
     SDL_Color color;
 } Circle;
@@ -57,7 +58,7 @@ int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms);
 
 void generate_random_circle(Circle* circle);
 
-int check_collision_circle(int* circle);
+int check_collision_circle();
 
 // Enche array com circulos vazios
 void initiate_circle_array(Circle* array, int array_size);
@@ -244,27 +245,44 @@ int main(int argc, char* argv[]) {
 		// Atualiza circulos com ticks
 		if(circle_array[i].remaining_ticks >=0){
 
-			--circle_array[i].remaining_ticks;
-		
-			// Efeito de fadeout
-			if(circle_array[i].color.a > 3){
-				circle_array[i].color.a -= 3;
+			// Efeito de fade in
+			if((circle_array[i].remaining_ticks) > (circle_array[i].base_ticks/2)){
+
+				if( 255 < (circle_array[i].color.a + ( 255/(circle_array[i].base_ticks/2) ) ) ){
+                                        circle_array[i].color.a = 255;
+                                }
+				else{
+					circle_array[i].color.a += ( 255/(circle_array[i].base_ticks/2) );
+				}
 			}
 
-			filledCircleRGBA(renderer, circle_array[i].x, circle_array[i].y, circle_array[i].radius, circle_array[i].color.r,
+			// Efeito de fade out
+			else{
+				if(circle_array[i].color.a > ( 255/(circle_array[i].base_ticks/2))){
+					circle_array[i].color.a -= ( 255/(circle_array[i].base_ticks/2) );
+				}
+				else{
+					circle_array[i].color.a = 0;
+				}
+			}
+
+			if(circle_array[i].remaining_ticks >=0){
+				filledCircleRGBA(renderer, circle_array[i].x, circle_array[i].y, circle_array[i].radius, circle_array[i].color.r,
                                         circle_array[i].color.g, circle_array[i].color.b, circle_array[i].color.a);
 
-			if(circle_array[i].remaining_ticks <0){
+				--circle_array[i].remaining_ticks;
+			}
+			else{
 				printf("Pai: Circulo expirado! (-1 ponto)\n");
-				/*
-				 *
-				 *	Criar efeito de mensagem de circulo nao clicado aqui!
-				 *
-				 *
-				 */
-				if (score > 0){
-					--score;
-				}
+                                /*
+                                 *
+                                 *      Criar efeito de mensagem de circulo nao clicado aqui!
+                                 *
+                                 *
+                                 */
+                                if (score > 0){
+                                        --score;
+                                }
 			}
 		}
 		else{
@@ -319,14 +337,15 @@ int main(int argc, char* argv[]) {
 					case INT_MIN:
 						printf("Pai: sei la oque deu\n");
 						break;
-					case 0:
+					case -1:
 						printf("Pai: Nao houve colisao! (-1 ponto)\n");
 						if (score > 0){
 							--score;
 						}
 						break;
 					default:
-						printf("Pai: Colisao bem-sucedida!\n");
+						printf("Pai: Colisao bem-sucedida! (circulo na posicao: %d)\n", colision_result);
+						++score;
 				}
 				break;
 	
@@ -428,9 +447,11 @@ void generate_random_circle(Circle* circle) {
     circle->partition = rand() % 3;	// Define particao
 
 
-    circle->starting_tick = 30 + (rand() % 50);
+    circle->starting_tick = 10 + (rand() % 30);
 
-    circle-> remaining_ticks = 150 + (rand() % 15); // Circulos no intervalo de [2s;3s]
+    circle-> base_ticks = 180 + (rand() % 300); // Circulos no intervalo de [3s;8s]
+
+    circle-> remaining_ticks = circle-> base_ticks;
 
     // Movido pra cima para ser usado em circle->x e circle->y
     circle->radius = rand() % 50 + 20;  // Raio entre 20 e 70 pixels
@@ -441,10 +462,10 @@ void generate_random_circle(Circle* circle) {
     circle->color.r = rand() % 256;
     circle->color.g = rand() % 256;
     circle->color.b = rand() % 256;
-    circle->color.a = 255;
+    circle->color.a = 0;
 }
 
-int check_collision_circle(int* score) {
+int check_collision_circle() {
 
     int mouse_x = INT_MIN;
     int mouse_y = INT_MIN;
@@ -458,9 +479,15 @@ int check_collision_circle(int* score) {
     }
 
 
-    int output = 0;
+    int output = -1;
 
-    for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%100)){
+    if (circle_array_end == circle_array_begin){
+	return output;
+    }
+
+
+
+    for(int i = ( (circle_array_end-1)%100); i != ((circle_array_begin-1)%100); i=((i-1)%100)){
 	int dx = mouse_x - circle_array[i].x;
 	int dy = mouse_y - circle_array[i].y;
 
@@ -468,11 +495,12 @@ int check_collision_circle(int* score) {
 		&& (circle_array[i].remaining_ticks >= 0) ){
 
 			circle_array[i].remaining_ticks = -1;	// Remove circulo
-			++(*score); // Aumenta pontuacao
-			output = 1;
+			output = i;
 			break;
 	}
     }
+
+
 
     return output;
 }
@@ -482,7 +510,7 @@ void initiate_circle_array(Circle* array, int array_size){
 	for (int i = 0; i < array_size; i++){
 
                 circle_array[i].x = circle_array[i].y = circle_array[i].radius =
-				circle_array[i].partition = circle_array[i].remaining_ticks = circle_array[i].starting_tick = -1;
+				circle_array[i].partition = circle_array[i].remaining_ticks = circle_array[i].base_ticks = circle_array[i].starting_tick = -1;
 
                 circle_array[i].color.r = circle_array[i].color.g = circle_array[i].color.b = circle_array[i].color.a = 0x00;
         }
@@ -619,11 +647,12 @@ int consume_notes_routine(void* data){
 			SDL_CondWait(conditional_circle_expired, mutex_circle_array);
 		}
 
+		/*
 		// Agora que achou circulos expirados no inicio do buffer,
 		// avanca inicio do buffer enquanto houverem circulos expirados
 		while(  (circle_array[circle_array_begin].remaining_ticks < 0)
                         && (circle_array_begin != circle_array_end)){
-
+*/
 				SDL_LockMutex(mutex_state);
 	                        if (!state) {
         	                        SDL_UnlockMutex(mutex_state);
@@ -640,7 +669,7 @@ int consume_notes_routine(void* data){
 
 		        	// Acrescenta posicao vazia ao array
 	        		SDL_SemPost(semaphore_circle_array_blank);
-		}
+//		}
 
 		SDL_UnlockMutex(mutex_circle_array);
 
