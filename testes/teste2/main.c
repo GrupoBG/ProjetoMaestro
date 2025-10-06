@@ -28,11 +28,17 @@ SDL_mutex* mutex_circle_array = NULL;
 SDL_mutex* mutex_state = NULL;
 SDL_mutex* mutex_ticks_counter = NULL;
 
+SDL_cond* conditional_tick_update = NULL;
 
 SDL_cond* conditional_circle_array_fill = NULL;
-SDL_cond* conditional_circle_array_empty = NULL;
+SDL_cond* conditional_circle_array_unfill = NULL;	// Unfill preferido para se referir a cada espaco do array
+							// e nao dar a ideia de array inteiro vazio (caso de "empty")
 
-SDL_cond* conditional_tick_update = NULL;
+SDL_sem* semaphore_circle_array_filled = NULL;
+SDL_sem* semaphore_circle_array_unfilled = NULL;
+
+
+
 
 // Estado do jogo, usado por todas as threads
 Uint32 tick_counter = 0;
@@ -64,9 +70,9 @@ void initiate_circle_array(Circle* array, int array_size);
 void fill_circle_array(Circle* array, int array_size);
 
 // Rotina da thread que lida com particoes e criacao de circulos no array
-int allocate_notes_routine(void* data);
+int produce_notes_routine(void* data);
 
-int deallocate_notes_routine(void* data);
+int consume_notes_routine(void* data);
 
 // Rotina da thread que lida com a musica (pauses, sincronizacao, etc)
 int music_routine(void* data);
@@ -92,9 +98,15 @@ int main(int argc, char* argv[]) {
     mutex_state = SDL_CreateMutex();
     mutex_ticks_counter = SDL_CreateMutex();
 
-    conditional_circle_array_fill = SDL_CreateCond();
-    conditional_circle_array_empty = SDL_CreateCond();
     conditional_tick_update = SDL_CreateCond();
+
+    conditional_circle_array_fill = SDL_CreateCond();
+    conditional_circle_array_unfill = SDL_CreateCond();
+
+
+    semaphore_circle_array_filled = SDL_CreateSemaphore(0);
+    semaphore_circle_array_unfilled = SDL_CreateSemaphore(100);
+
 
     if(!mutex_circle_array){
 	printf("Erro ao criar mutex de circulos: %s\n", SDL_GetError());
@@ -111,23 +123,40 @@ int main(int argc, char* argv[]) {
 	output = -3;
         goto FIM;
     }
-    if(!conditional_circle_array_fill){
-        printf("Erro ao criar condicional de contagem de ticks: %s\n", SDL_GetError());
-        output = -5;
-        goto FIM;
-    }
 
-    if(!conditional_circle_array_empty){
-        printf("Erro ao criar condicional de contagem de ticks: %s\n", SDL_GetError());
-        output = -5;
-        goto FIM;
-    }
+
 
     if(!conditional_tick_update){
         printf("Erro ao criar condicional de contagem de ticks: %s\n", SDL_GetError());
         output = -5;
         goto FIM;
     }
+    if(!conditional_circle_array_fill){
+        printf("Erro ao criar condicional de enchimento do buffer de circulos: %s\n", SDL_GetError());
+        output = -5;
+        goto FIM;
+    }
+
+    if(!conditional_circle_array_unfill){
+        printf("Erro ao criar condicional de esvaziamento do buffer de circulos: %s\n", SDL_GetError());
+        output = -5;
+        goto FIM;
+    }
+
+
+
+    if(!semaphore_circle_array_filled){
+        printf("Erro ao criar semaforo de contagem de espacos cheios no buffer de circulos: %s\n", SDL_GetError());
+        output = -6;
+        goto FIM;
+    }
+
+    if(!semaphore_circle_array_unfilled){
+        printf("Erro ao criar semaforo de contagem de espacos vazios no buffer de circulos: %s\n", SDL_GetError());
+        output = -6;
+        goto FIM;
+    }
+
 
     initiate_circle_array(circle_array, 100);
     fill_circle_array(partiture, partiture_end);
@@ -161,10 +190,10 @@ int main(int argc, char* argv[]) {
 	/*	Threads		*/
 
     // Cria thread que aloca circulos
-    SDL_Thread* allocate_notes = NULL;
+    SDL_Thread* produce_notes = NULL;
 
     // Cria thread que desaloca circulos
-    SDL_Thread* deallocate_notes = NULL;
+    SDL_Thread* consume_notes = NULL;
 
     /*          TO IMPLEMENT
      *
@@ -173,15 +202,15 @@ int main(int argc, char* argv[]) {
     */
 
     // Inicia threads filhos
-    allocate_notes = SDL_CreateThread(allocate_notes_routine, "Aloca Notas", (void*)"aaa");
-    if (!allocate_notes){
+    produce_notes = SDL_CreateThread(produce_notes_routine, "Produz notas", (void*)"aaa");
+    if (!produce_notes){
         printf("Erro ao criar thread de alocar circulos: %s\n", SDL_GetError());
         output = -2;
         goto FIM;
     }
 
-    deallocate_notes = SDL_CreateThread(deallocate_notes_routine, "Desaloca Notas", (void*)"bbb");
-    if (!deallocate_notes){
+    consume_notes = SDL_CreateThread(consume_notes_routine, "Consome notas", (void*)"bbb");
+    if (!consume_notes){
         printf("Erro ao criar thread de desalocar circulos: %s\n", SDL_GetError());
         output = -2;
         goto FIM;
@@ -222,10 +251,9 @@ int main(int argc, char* argv[]) {
         SDL_RenderClear(renderer);
 
 	// Circulos
-	SDL_LockMutex(mutex_circle_array);
 	for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%100)){
 
-		printf("Pai esta desenhando circulos!\n");
+		//printf("Pai: Desenhando circulos!\n");
 
 		// Atualiza circulos com ticks
 		if(circle_array[i].remaining_ticks >=0){
@@ -241,7 +269,7 @@ int main(int argc, char* argv[]) {
                                         circle_array[i].color.g, circle_array[i].color.b, circle_array[i].color.a);
 
 			if(circle_array[i].remaining_ticks <0){
-				printf("Circulo expirado! (-1 ponto)\n");
+				printf("Pai: Circulo expirado! (-1 ponto)\n");
 				/*
 				 *
 				 *	Criar efeito de mensagem de circulo nao clicado aqui!
@@ -254,7 +282,6 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
-	SDL_UnlockMutex(mutex_circle_array);
 
 
 	// Linhas
@@ -280,7 +307,7 @@ int main(int argc, char* argv[]) {
 	                	state = 0;
 
 				SDL_CondBroadcast(conditional_circle_array_fill);
-				SDL_CondBroadcast(conditional_circle_array_empty);
+				SDL_CondBroadcast(conditional_circle_array_unfill);
 				SDL_CondBroadcast(conditional_tick_update);
 
 				SDL_UnlockMutex(mutex_state);
@@ -290,16 +317,16 @@ int main(int argc, char* argv[]) {
                 		int colision_result = check_collision_circle(&score);
 				switch(colision_result){
 					case INT_MIN:
-						printf("sei la oque deu\n");
+						printf("Pai: sei la oque deu\n");
 						break;
 					case 0:
-						printf("Nao houve colisao! (-1 ponto)\n");
+						printf("Pai: Nao houve colisao! (-1 ponto)\n");
 						if (score > 0){
 							--score;
 						}
 						break;
 					default:
-						printf("Colisao bem-sucedida!\n");
+						printf("Pai: Colisao bem-sucedida!\n");
 				}
 				break;
 	
@@ -316,16 +343,16 @@ int main(int argc, char* argv[]) {
     }
     printf("Fim de Jogo! Sua pontuacao e: %d\n", score);
 
-    //SDL_WaitThread(allocate_notes, NULL);
+    //SDL_WaitThread(produce_notes, NULL);
 
 FIM:
     	/*	Desaloca tudo	*/
-    if (allocate_notes){
-	SDL_DetachThread(allocate_notes);
+    if (produce_notes){
+	SDL_DetachThread(produce_notes);
     }
 
-    if (deallocate_notes){
-        SDL_DetachThread(deallocate_notes);
+    if (consume_notes){
+        SDL_DetachThread(consume_notes);
     }
 
     /*		TO IMPLEMENT
@@ -343,16 +370,26 @@ FIM:
     if(mutex_ticks_counter){
                 SDL_DestroyMutex(mutex_ticks_counter);
     }
+
+
+
     if(conditional_circle_array_fill){
                 SDL_DestroyCond(conditional_circle_array_fill);
     }
 
-    if(conditional_circle_array_empty){
-                SDL_DestroyCond(conditional_circle_array_empty);
+    if(conditional_circle_array_unfill){
+                SDL_DestroyCond(conditional_circle_array_unfill);
     }
-
     if(conditional_tick_update){
                 SDL_DestroyCond(conditional_tick_update);
+    }
+
+
+    if(semaphore_circle_array_filled){
+                SDL_DestroySemaphore(semaphore_circle_array_filled);
+    }
+    if(semaphore_circle_array_unfilled){
+                SDL_DestroySemaphore(semaphore_circle_array_unfilled);
     }
 
 
@@ -468,8 +505,8 @@ void fill_circle_array(Circle* array, int array_size){
         }
 }
 
-// Rotina da thread que lida com particoes e criacao de circulos no array
-int allocate_notes_routine(void* data){
+// Rotina da thread que lida com criacao de circulos no array
+int produce_notes_routine(void* data){
 
 	// Guarda tempo em ticks antes da primeira execucao
 	SDL_LockMutex(mutex_ticks_counter);
@@ -485,7 +522,7 @@ int allocate_notes_routine(void* data){
                         state = 0;
 
 			SDL_CondBroadcast(conditional_circle_array_fill);
-			SDL_CondBroadcast(conditional_circle_array_empty);
+			SDL_CondBroadcast(conditional_circle_array_unfill);
                         SDL_CondBroadcast(conditional_tick_update);
 
                         SDL_UnlockMutex(mutex_state);
@@ -504,12 +541,12 @@ int allocate_notes_routine(void* data){
 		SDL_LockMutex(mutex_circle_array);
 	
 		SDL_LockMutex(mutex_state);
-		while(( (circle_array_end +1) %100) == circle_array_begin
+		while( !SDL_SemValue(semaphore_circle_array_unfilled)
 		     && state){
 
 			SDL_UnlockMutex(mutex_state);
 			
-			printf("filho-Aloca em espera por espaco vazio no array de circulos!\n");
+			printf("\033[0;32mFilho-produtor: em espera por espaco vazio no array de circulos!\033[0m\n");
 			SDL_CondWait(conditional_circle_array_fill, mutex_circle_array);
 			
 			SDL_LockMutex(mutex_state);
@@ -519,7 +556,7 @@ int allocate_notes_routine(void* data){
 
 		// Se chegou aqui, array nao esta cheio
 
-		//printf("filho-Aloca achou espaco!\n");
+		//printf("\033[0;32mFilho-produtor: achou espaco!\033[0m\n");
 
 
 		// Se o tempo de criacao do proximo circulo ja passou, cria circulo
@@ -543,35 +580,39 @@ int allocate_notes_routine(void* data){
 		SDL_UnlockMutex(mutex_ticks_counter);
 
 	
-		// Se chegou aqui, ja pode alocar circulo
+		// Se chegou aqui, ja pode criar circulo
 	
 		SDL_LockMutex(mutex_circle_array);
 		SDL_LockMutex(mutex_state);
 		if(state){
 
 
+			SDL_SemWait(semaphore_circle_array_unfilled);
+
 			circle_array[circle_array_end] = partiture[partiture_next];
 			++circle_array_end;
 			circle_array_end %= 100;
 
-			SDL_CondBroadcast(conditional_circle_array_empty);
+			SDL_SemPost(semaphore_circle_array_filled);
+
+			SDL_CondBroadcast(conditional_circle_array_unfill);
 
 			++partiture_next;
 
-			printf("filho-Aloca criou circulo!\n");
+			printf("\033[0;32mFilho-produtor: criou circulo!\033[0m\n");
 
 		}
 		SDL_UnlockMutex(mutex_state);
-		 SDL_UnlockMutex(mutex_circle_array);
+		SDL_UnlockMutex(mutex_circle_array);
 
 
         }
 	return 0;
 }
 
-int deallocate_notes_routine(void* data){
+// Rotina de thread que consome circulos do buffer
+int consume_notes_routine(void* data){
 
-	
 	while(1){
 
 		SDL_LockMutex(mutex_state);
@@ -584,30 +625,35 @@ int deallocate_notes_routine(void* data){
 		// Se array de circulos estiver vazio, espera
                 SDL_LockMutex(mutex_circle_array);
                 SDL_LockMutex(mutex_state);
-                while(( circle_array_end == circle_array_begin
+                while(( !SDL_SemValue(semaphore_circle_array_filled) 
                      && state)){
 
                         SDL_UnlockMutex(mutex_state);
 
-                        printf("filho-Desaloca em espera por circulos no array!\n");
-                        SDL_CondWait(conditional_circle_array_empty, mutex_circle_array);
+                        printf("\033[0;31mFilho-consumidor: Em espera por circulos no array!\033[0m\n");
+                        SDL_CondWait(conditional_circle_array_unfill, mutex_circle_array);
 
                         SDL_LockMutex(mutex_state);
                 }
                 SDL_UnlockMutex(mutex_state);
-                SDL_UnlockMutex(mutex_circle_array);
+		SDL_UnlockMutex(mutex_circle_array);
 	
 		// Array nao-vazio, pode retirar circulo
 		SDL_LockMutex(mutex_circle_array);
 		SDL_LockMutex(mutex_state);
 		if(state){
 
-
                         if (circle_array[circle_array_begin].remaining_ticks < 0){
-                	        printf("filho-Desaloca circulo expirado!\n");
+				
+				SDL_SemWait(semaphore_circle_array_filled);
+
+                	        printf("\033[0;31mFilho-consumidor: circulo expirado!\033[0m\n");
         	                ++circle_array_begin;
 	                        circle_array_begin %= 100;
-                                SDL_CondBroadcast(conditional_circle_array_fill);
+
+				SDL_SemPost(semaphore_circle_array_unfilled);
+
+				SDL_CondBroadcast(conditional_circle_array_fill);
                         }
 
                 }
