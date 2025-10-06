@@ -33,6 +33,7 @@ SDL_cond* conditional_tick_update = NULL;
 SDL_cond* conditional_circle_array_fill = NULL;
 SDL_cond* conditional_circle_array_unfill = NULL;	// Unfill preferido para se referir a cada espaco do array
 							// e nao dar a ideia de array inteiro vazio (caso de "empty")
+SDL_cond* conditional_next_circle_expired = NULL;
 
 SDL_sem* semaphore_circle_array_filled = NULL;
 SDL_sem* semaphore_circle_array_unfilled = NULL;
@@ -102,6 +103,7 @@ int main(int argc, char* argv[]) {
 
     conditional_circle_array_fill = SDL_CreateCond();
     conditional_circle_array_unfill = SDL_CreateCond();
+    conditional_next_circle_expired = SDL_CreateCond();
 
 
     semaphore_circle_array_filled = SDL_CreateSemaphore(0);
@@ -139,6 +141,11 @@ int main(int argc, char* argv[]) {
 
     if(!conditional_circle_array_unfill){
         printf("Erro ao criar condicional de esvaziamento do buffer de circulos: %s\n", SDL_GetError());
+        output = -5;
+        goto FIM;
+    }
+    if(!conditional_next_circle_expired){
+        printf("Erro ao criar condicional de proximo circulo expirado: %s\n", SDL_GetError());
         output = -5;
         goto FIM;
     }
@@ -270,6 +277,7 @@ int main(int argc, char* argv[]) {
 
 			if(circle_array[i].remaining_ticks <0){
 				printf("Pai: Circulo expirado! (-1 ponto)\n");
+				SDL_CondBroadcast(conditional_next_circle_expired);
 				/*
 				 *
 				 *	Criar efeito de mensagem de circulo nao clicado aqui!
@@ -309,6 +317,8 @@ int main(int argc, char* argv[]) {
 				SDL_CondBroadcast(conditional_circle_array_fill);
 				SDL_CondBroadcast(conditional_circle_array_unfill);
 				SDL_CondBroadcast(conditional_tick_update);
+
+				SDL_CondBroadcast(conditional_next_circle_expired);
 
 				SDL_UnlockMutex(mutex_state);
 				break;
@@ -382,6 +392,9 @@ FIM:
     }
     if(conditional_tick_update){
                 SDL_DestroyCond(conditional_tick_update);
+    }
+    if(conditional_next_circle_expired){
+                SDL_DestroyCond(conditional_next_circle_expired);
     }
 
 
@@ -510,7 +523,7 @@ int produce_notes_routine(void* data){
 
 	// Guarda tempo em ticks antes da primeira execucao
 	SDL_LockMutex(mutex_ticks_counter);
-        Uint32 now_tick = tick_counter;
+        Uint32 last_note_tick = tick_counter;
         SDL_UnlockMutex(mutex_ticks_counter);
 
 
@@ -525,49 +538,26 @@ int produce_notes_routine(void* data){
 			SDL_CondBroadcast(conditional_circle_array_unfill);
                         SDL_CondBroadcast(conditional_tick_update);
 
+			SDL_CondBroadcast(conditional_next_circle_expired);
+
                         SDL_UnlockMutex(mutex_state);
                 }
-
-		SDL_LockMutex(mutex_state);
-
-		if (!state) {
-		        SDL_UnlockMutex(mutex_state);
-        		break;
-		}
-
-		SDL_UnlockMutex(mutex_state);
-
-		// Se array de circulos estiver cheio, espera
-		SDL_LockMutex(mutex_circle_array);
-	
-		SDL_LockMutex(mutex_state);
-		while( !SDL_SemValue(semaphore_circle_array_unfilled)
-		     && state){
-
-			SDL_UnlockMutex(mutex_state);
-			
-			printf("\033[0;32mFilho-produtor: em espera por espaco vazio no array de circulos!\033[0m\n");
-			SDL_CondWait(conditional_circle_array_fill, mutex_circle_array);
-			
-			SDL_LockMutex(mutex_state);
-		}
-		SDL_UnlockMutex(mutex_state);
-		SDL_UnlockMutex(mutex_circle_array);
 
 		// Se chegou aqui, array nao esta cheio
 
 		//printf("\033[0;32mFilho-produtor: achou espaco!\033[0m\n");
 
 
-		// Se o tempo de criacao do proximo circulo ja passou, cria circulo
-		
+		// Checa se o tempo de criacao do proximo circulo ja passou
 		SDL_LockMutex(mutex_ticks_counter);
 
 		SDL_LockMutex(mutex_state);
-		while((tick_counter-now_tick) < partiture[partiture_next].starting_tick
+		while(tick_counter < (last_note_tick + partiture[partiture_next].starting_tick)
 			&& state){	// Loop de espera sem espera ocupada
 
 			SDL_UnlockMutex(mutex_state);
+
+			printf("\033[0;32mFilho-produtor: Esperando ticks da proxima nota! (ticks faltando: %d )\033[0m\n", (last_note_tick+partiture[partiture_next].starting_tick) - tick_counter);
 			
 			SDL_CondWait(conditional_tick_update, mutex_ticks_counter);
 
@@ -575,36 +565,57 @@ int produce_notes_routine(void* data){
 		}
 		SDL_UnlockMutex(mutex_state);
 
-		now_tick = tick_counter;
-
 		SDL_UnlockMutex(mutex_ticks_counter);
 
-	
-		// Se chegou aqui, ja pode criar circulo
-	
+
+		// Se array de circulos estiver cheio, espera
+                SDL_LockMutex(mutex_circle_array);
+                SDL_LockMutex(mutex_state);
+
+
+                while( !SDL_SemValue(semaphore_circle_array_unfilled)
+                     && state){
+
+                        SDL_UnlockMutex(mutex_state);
+
+                        printf("\033[0;32mFilho-produtor: em espera por espaco vazio no array de circulos!\033[0m\n");
+                        SDL_CondWait(conditional_circle_array_fill, mutex_circle_array);
+
+                        SDL_LockMutex(mutex_state);
+                }
+		SDL_UnlockMutex(mutex_state);
+                SDL_UnlockMutex(mutex_circle_array);
+
+
+		//Se ainda estiver rodando, cria circulo
+		//Senao, sai do loop
 		SDL_LockMutex(mutex_circle_array);
 		SDL_LockMutex(mutex_state);
-		if(state){
 
+                if (!state) {
+                        SDL_UnlockMutex(mutex_state);
+                        break;
+                }
 
-			SDL_SemWait(semaphore_circle_array_unfilled);
+		SDL_SemWait(semaphore_circle_array_unfilled);
 
-			circle_array[circle_array_end] = partiture[partiture_next];
-			++circle_array_end;
-			circle_array_end %= 100;
+        	circle_array[circle_array_end] = partiture[partiture_next];
+                ++circle_array_end;
+	        circle_array_end %= 100;
 
-			SDL_SemPost(semaphore_circle_array_filled);
+	        SDL_SemPost(semaphore_circle_array_filled);
 
-			SDL_CondBroadcast(conditional_circle_array_unfill);
+        	SDL_CondBroadcast(conditional_circle_array_unfill);
 
-			++partiture_next;
+                ++partiture_next;
 
-			printf("\033[0;32mFilho-produtor: criou circulo!\033[0m\n");
+		last_note_tick = tick_counter;
 
-		}
+	        printf("\033[0;32mFilho-produtor: criou circulo! (circulos restantes: %d )\033[0m\n", SDL_SemValue(semaphore_circle_array_filled));
+                
 		SDL_UnlockMutex(mutex_state);
-		SDL_UnlockMutex(mutex_circle_array);
-
+                SDL_UnlockMutex(mutex_circle_array);
+	
 
         }
 	return 0;
@@ -637,36 +648,56 @@ int consume_notes_routine(void* data){
                 }
                 SDL_UnlockMutex(mutex_state);
 		SDL_UnlockMutex(mutex_circle_array);
-	
+
+
+
 		// Array nao-vazio, pode retirar circulo
+		
+
+		// Checa se o tempo do proximo circulo e 0
+		SDL_LockMutex(mutex_circle_array);
+                SDL_LockMutex(mutex_state);
+		while( (circle_array[circle_array_begin].remaining_ticks >= 0)
+                     && state){
+			SDL_UnlockMutex(mutex_state);
+			
+			printf("\033[0;31mFilho-consumidor: Esperando circulo expirar...\033[0m\n");
+			SDL_CondWait(conditional_next_circle_expired, mutex_circle_array);
+			
+			SDL_LockMutex(mutex_state);
+		}
+		SDL_UnlockMutex(mutex_state);
+                SDL_UnlockMutex(mutex_circle_array);
+
+
+		// Se ainda estiver rodando, remove circulo
+		// Senao, sai do loop
 		SDL_LockMutex(mutex_circle_array);
 		SDL_LockMutex(mutex_state);
-		if(state){
 
-                        if (circle_array[circle_array_begin].remaining_ticks < 0){
-				
-				SDL_SemWait(semaphore_circle_array_filled);
-
-                	        printf("\033[0;31mFilho-consumidor: circulo expirado!\033[0m\n");
-        	                ++circle_array_begin;
-	                        circle_array_begin %= 100;
-
-				SDL_SemPost(semaphore_circle_array_unfilled);
-
-				SDL_CondBroadcast(conditional_circle_array_fill);
-                        }
-
+                if (!state) {
+                        SDL_UnlockMutex(mutex_state);
+                        break;
                 }
-                SDL_UnlockMutex(mutex_state);
+
+		SDL_SemWait(semaphore_circle_array_filled);
+
+        	printf("\033[0;31mFilho-consumidor: circulo consumido! (circulos restantes: %d)\033[0m\n", SDL_SemValue(semaphore_circle_array_filled) );
+                ++circle_array_begin;
+	        circle_array_begin %= 100;
+
+        	SDL_SemPost(semaphore_circle_array_unfilled);
+
+                SDL_CondBroadcast(conditional_circle_array_fill);
+
+		SDL_UnlockMutex(mutex_state);
 		SDL_UnlockMutex(mutex_circle_array);
+
+
 	}
 
 	return 0;
 }
-
-
-
-
 
 
 
