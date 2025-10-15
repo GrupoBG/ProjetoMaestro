@@ -14,13 +14,13 @@ Quatro botões alinhados verticalmente:
 ## Componentes Principais
 
 ### Estruturas
-
+```c
 typedef struct {
     SDL_Rect rect;          
     SDL_Texture* texture;   
     const char* text;   
 } Button;
-
+```
 
 ### Funções Principais
 
@@ -66,7 +66,7 @@ Prototipo de um jogo rítmico onde círculos aparecem em três partições da te
 
 
 ### Estruturas Principais
-
+```c
 typedef struct {
     int x, y;              // Posição na tela
     int radius;            // Raio do círculo
@@ -76,7 +76,8 @@ typedef struct {
     SDL_Color color;       // Cor RGBA
     int fade_in_ticks;     // Contador para efeito fade
 } Circle;
-
+```
+```c
 typedef struct {
     Circle circles[MAX_CIRCLES];  // Array de círculos
     int count;                    // Quantidade atual
@@ -84,7 +85,7 @@ typedef struct {
     float spawn_timer;           // Tempo para próximo círculo
     Uint32 tick_counter;         // Contador de ticks
 } GameState;
-
+```
 
 ## Mecânicas do Jogo
 
@@ -130,7 +131,9 @@ typedef struct {
 6. Repete até fim do tempo
 
 ## Compilação
+```c
 gcc main.c -o main -lSDL2 -lSDL2_gfx
+```
 
 ## Dependências
 - SDL2
