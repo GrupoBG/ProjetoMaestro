@@ -311,7 +311,8 @@ int main(int argc, char* argv[]) {
 	// Mostra desenho
 	SDL_RenderPresent(renderer);
 
-	while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
+	//while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
+	SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
 
 			/*	Checa eventos		*/
 	int isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
@@ -429,7 +430,8 @@ FIM:
 //Funcao auxiliar que esconde o uso de "SDL_WaitEventTimeout"
 //
 //
-//Atualizada -> Agora nao precisa de getTicks() anterior a chamada
+// Atualizada -> Sempre tentar reduzir tempo, nao somente quando houver evento
+// parece ter consertado problemas de travamento
 int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms){
 
         //Pega tempo anterior
@@ -437,8 +439,10 @@ int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms){
 
         int isevt =  SDL_WaitEventTimeout( evt , *ms );
 
+	Uint32 decorrido = SDL_GetTicks() - antes;
+
         //Lida com atualizacao do valor de espera
-        (*ms) = (isevt)? ((*ms)-( SDL_GetTicks()- antes )):(*ms);
+        *ms = (*ms > decorrido) ? (*ms - decorrido) : 0;
 
         return isevt;
 }
@@ -487,7 +491,7 @@ int check_collision_circle() {
 
 
 
-    for(int i = ( (circle_array_end-1)%100); i != ((circle_array_begin-1)%100); i=((i-1)%100)){
+    for(int i = ( (circle_array_end-1 + 100)%100); i != ((circle_array_begin-1 +100)%100); i=((i-1 +100)%100)){
 	int dx = mouse_x - circle_array[i].x;
 	int dy = mouse_y - circle_array[i].y;
 
@@ -569,7 +573,8 @@ int produce_notes_routine(void* data){
                 // Checa se o tempo de criacao do proximo circulo ja passou
 		// Se sim produz circulo
                 SDL_LockMutex(mutex_ticks_counter);
-                while(tick_counter < (last_note_tick + partiture[partiture_next].starting_tick)){
+
+		while(tick_counter < (last_note_tick + partiture[partiture_next].starting_tick)){
 
 			SDL_LockMutex(mutex_state);
 		        if (!state) {
@@ -585,26 +590,27 @@ int produce_notes_routine(void* data){
                         SDL_CondWait(conditional_tick_update, mutex_ticks_counter);
 
                 }
-                SDL_UnlockMutex(mutex_ticks_counter);
+
+		// Atualiza proximo circulo na partitura e tempo da ultima nota
+		last_note_tick = tick_counter;
+                
+
+		SDL_UnlockMutex(mutex_ticks_counter);
+
 
 
 		// Cria circulo
 		SDL_LockMutex(mutex_circle_array);
-		SDL_LockMutex(mutex_ticks_counter);
 
                 circle_array[circle_array_end] = partiture[partiture_next];
                 ++circle_array_end;
                 circle_array_end %= 100;
-
-		// Atualiza proximo circulo na partitura e tempo da ultima nota
-		last_note_tick = tick_counter;
 
 		++partiture_next;
 
 
 		printf("\033[0;32mFilho-produtor: criou circulo! (espacos possiveis para novos circulo possiveis: %d )\033[0m\n", SDL_SemValue(semaphore_circle_array_blank));
 
-		SDL_UnlockMutex(mutex_ticks_counter);
 		SDL_UnlockMutex(mutex_circle_array);
 
 
