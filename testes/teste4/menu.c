@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 
         SDL_RENDERER_ACCELERATED);
 
-    TTF_Font* font = TTF_OpenFont("Roboto-Regular.ttf", 32);
+    TTF_Font* font = TTF_OpenFont("LibreBaskerville-Italic.ttf", 32);
     if (!font) {
         printf("Nao carregou fonte: %s\n", TTF_GetError());
         return 1;
