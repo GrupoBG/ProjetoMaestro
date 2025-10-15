@@ -28,6 +28,7 @@ typedef struct {
     Circle circles[MAX_CIRCLES]; // Array de circulos
     int count;                  // Quantidade atual de circulos
     int score;                  // Pontuacao do jogador
+    int errors;                // Contador de erros
     float spawn_timer;          // Temporizador para criar novos circulos
     Uint32 tick_counter;        // Contador de ticks do jogo
 } GameState;
@@ -37,7 +38,6 @@ void generate_random_circle(Circle* circle) {
     circle->partition = rand() % 3;  // Escolhe uma das tres particoes
     circle->base_ticks = 180 + (rand() % 300);
     circle->remaining_ticks = circle->base_ticks;
-    // Adjust circle size for smaller window
     circle->radius = rand() % 30 + 15; 
     
     // Posiciona o circulo dentro da particao escolhida
@@ -79,7 +79,9 @@ void update_circles(GameState* game) {
             circle->remaining_ticks--;
             if (circle->remaining_ticks < 0 && game->score > 0) {
                 game->score--;
-                printf("Circulo expirado! (-1 ponto)\n");
+                game->errors++;
+                printf("Circulo expirado! (-1 ponto) | Acertos: %d | Erros: %d\n", 
+                       game->score, game->errors);
             }
         }
     }
@@ -107,14 +109,17 @@ bool check_collision(GameState* game, int mouse_x, int mouse_y) {
             if ((dx * dx + dy * dy) <= (circle->radius * circle->radius)) {
                 circle->remaining_ticks = -1;
                 game->score++;
-                printf("Acerto! (+1 ponto)\n");
+                printf("Acerto! (+1 ponto) | Acertos: %d | Erros: %d\n", 
+                       game->score, game->errors);
                 return true;
             }
         }
     }
     if (game->score > 0) {
         game->score--;
-        printf("Erro! (-1 ponto)\n");
+        game->errors++;
+        printf("Erro! (-1 ponto) | Acertos: %d | Erros: %d\n", 
+               game->score, game->errors);
     }
     return false;
 }
@@ -130,6 +135,7 @@ int main(int argc, char* argv[]) {
     GameState game = {
         .count = 0,
         .score = 0,
+        .errors = 0,
         .spawn_timer = 0,
         .tick_counter = 0
     };
@@ -223,7 +229,8 @@ int main(int argc, char* argv[]) {
     }
 
     // Mostra pontuacao final
-    printf("\nTempo acabou! Pontuacao final: %d\n", game.score);
+    printf("\nTempo acabou! Pontuacao final: %d | Total de erros: %d\n", 
+           game.score, game.errors);
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

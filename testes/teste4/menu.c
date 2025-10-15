@@ -1,22 +1,24 @@
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#include <SDL2/SDL2_gfxPrimitives.h>
-#include <stdbool.h>
+#include <SDL2/SDL.h>           
+#include <SDL2/SDL_ttf.h>       
+#include <SDL2/SDL2_gfxPrimitives.h>  
+#include <stdbool.h>            
 
+// Includes específicos para sistemas Linux
 #ifdef __linux__
 #include <unistd.h>
 #endif
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGHT 600
-#define BUTTON_WIDTH 200
-#define BUTTON_HEIGHT 50
-#define BUTTON_SPACING 20
+#define WINDOW_WIDTH 800        
+#define WINDOW_HEIGHT 600       
+#define BUTTON_WIDTH 200        
+#define BUTTON_HEIGHT 50        
+#define BUTTON_SPACING 20       
 
+// Botao do menu
 typedef struct {
-    SDL_Rect rect;
-    SDL_Texture* texture;
-    const char* text;
+    SDL_Rect rect;             
+    SDL_Texture* texture;       
+    const char* text;          
 } Button;
 
 
@@ -30,29 +32,31 @@ int AUX_WaitEventTimeout(SDL_Event* ev, int timeout) {
     }
 }
 
+
 void create_button(Button* button, SDL_Renderer* renderer, TTF_Font* font, 
                   const char* text, int y_position) {
     SDL_Color white = {255, 255, 255, 255};
     SDL_Surface* surface = TTF_RenderText_Blended(font, text, white);
     button->texture = SDL_CreateTextureFromSurface(renderer, surface);
     button->text = text;
-    
+
     button->rect.x = (WINDOW_WIDTH - BUTTON_WIDTH) / 2;
     button->rect.y = y_position;
     button->rect.w = BUTTON_WIDTH;
     button->rect.h = BUTTON_HEIGHT;
     
-    SDL_FreeSurface(surface);
+    SDL_FreeSurface(surface);  // Libera a superficie apos criar a textura
 }
 
+// Funcao que verifica se um ponto (x,y) esta dentro de um retangulo
 bool point_in_rect(int x, int y, SDL_Rect* rect) {
     return (x >= rect->x && x <= rect->x + rect->w &&
             y >= rect->y && y <= rect->y + rect->h);
 }
 
 int main(int argc, char* argv[]) {
-    SDL_Init(SDL_INIT_VIDEO);
-    TTF_Init();
+    SDL_Init(SDL_INIT_VIDEO);  
+    TTF_Init();              
 
     SDL_Window* window = SDL_CreateWindow("Projeto Maestro",
         SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
@@ -66,7 +70,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
+    TTF_SetFontHinting(font, TTF_HINTING_LIGHT); 
 
     Button buttons[4];
     create_button(&buttons[0], renderer, font, "Jogar", 200);
@@ -119,6 +123,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < 4; i++) {
         SDL_DestroyTexture(buttons[i].texture);
     }
+
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
