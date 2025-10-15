@@ -52,7 +52,9 @@ typedef struct {
    - Encerramento do sistema
 
 ## Compilação
+```c
 gcc menu.c -o menu -lSDL2 -lSDL2_ttf -lSDL2_gfx
+```
 
 ## Dependências
 - SDL2
