@@ -26,6 +26,8 @@
 #define EFFECTS_ARRAY_SIZE 1000
 #define CIRCLE_ARRAY_SIZE 100
 
+#define MAX_SCORE 9999999999
+#define MAX_MULTIPLIER 99
 
 /* TODO 
  *
@@ -97,6 +99,14 @@ typedef struct{
 
 } Effect;
 
+typedef struct{
+	SDL_Texture* score;
+	SDL_Texture* multiplier;
+	int w, h;
+	int score_value;
+	short multiplier_value;
+} HUD;
+
 
 // Sequencia de todas as notas do jogo
 Circle partiture[2000];
@@ -156,6 +166,21 @@ int main(int argc, char* argv[]) {
 
     int state = 1;
     int score = 0;
+    short multiplier = 1;
+
+    HUD game_HUD;
+
+    game_HUD.w = 200;
+    game_HUD.h = 100;
+
+    
+
+    game_HUD.score = NULL;
+    game_HUD.multiplier = NULL;
+
+    game_HUD.score_value = score;
+    game_HUD.multiplier_value = multiplier;
+
 
     // Lida com eventos
     Uint32 tick_counter = 0;
@@ -235,25 +260,54 @@ int main(int argc, char* argv[]) {
             effect_template[i].size = 0;
     }
 
-    SDL_Color cor_efeito = {0xFF, 0xFF, 0xFF, 0xFF};
+    SDL_Color effect_color = {0xFF, 0xFF, 0xFF, 0xFF};
 
     
     // Efeito clique perfeito
-    create_text(renderer, &effect_template[CLIQUE_PERFEITO].img, "Perfeito!", cor_efeito, fnt);
+    create_text(renderer, &effect_template[CLIQUE_PERFEITO].img, "Perfeito!", effect_color, fnt);
     effect_template[CLIQUE_PERFEITO].size = 1;
     // Efeito clique bom
-    create_text(renderer, &effect_template[CLIQUE_BOM].img, "Bom", cor_efeito, fnt);
+    create_text(renderer, &effect_template[CLIQUE_BOM].img, "Bom", effect_color, fnt);
     effect_template[CLIQUE_BOM].size = 1;
     // Efeito clique ruim
-    create_text(renderer, &effect_template[CLIQUE_RUIM].img, "Ruim", cor_efeito, fnt);
+    create_text(renderer, &effect_template[CLIQUE_RUIM].img, "Ruim", effect_color, fnt);
     effect_template[CLIQUE_RUIM].size = 1;
     // Efeito clique expirado
-    create_text(renderer, &effect_template[CLIQUE_EXPIRADO].img, "Expirado", cor_efeito, fnt);
+    create_text(renderer, &effect_template[CLIQUE_EXPIRADO].img, "Expirado", effect_color, fnt);
     effect_template[CLIQUE_EXPIRADO].size = 1;
     // Efeito clique errado
-    create_text(renderer, &effect_template[CLIQUE_ERROU].img, "Errou", cor_efeito, fnt);
+    create_text(renderer, &effect_template[CLIQUE_ERROU].img, "Errou", effect_color, fnt);
     effect_template[CLIQUE_ERROU].size = 1;
 
+    	/*	Inicia HUD	*/
+
+    SDL_Color HUD_color = {0xFF, 0xFF, 0xFF, 0xFF};
+
+    char score_buffer[20];
+    snprintf(score_buffer, sizeof(score_buffer), "%10d", score);
+
+    char score_label[50] = "Pontos: ";
+    create_text(renderer, &game_HUD.score, strncat(score_label, score_buffer, sizeof(score_label) - strlen(score_label) - 1), HUD_color, fnt);
+    strcpy(score_label, "Pontos: ");
+
+    if (!game_HUD.score){
+	printf("Erro ao iniciar pontuacao: %s\n", SDL_GetError());
+        output = -1;
+        goto FIM;
+    }
+
+    char multiplier_buffer[10];
+    snprintf(multiplier_buffer, sizeof(multiplier_buffer), "%3d", multiplier);
+
+    char multiplier_label[50] = "Multiplicador: ";
+    create_text(renderer, &game_HUD.multiplier, strncat(multiplier_label, multiplier_buffer, sizeof(multiplier_label) - strlen(multiplier_label) - 1), HUD_color, fnt);
+    strcpy(multiplier_label, "Multiplicador: ");
+
+    if (!game_HUD.multiplier){
+	printf("Erro ao iniciar multiplicador: %s\n", SDL_GetError());
+        output = -1;
+        goto FIM;
+    }
 
     	/*	Eventos custom	*/
 
@@ -315,6 +369,29 @@ int main(int argc, char* argv[]) {
 		);
 	}
 
+	// Atualiza HUD
+	
+		// Desaloca texturas
+	if (	score != game_HUD.score_value
+	||	multiplier != game_HUD.multiplier_value){
+
+		SDL_DestroyTexture(game_HUD.score); game_HUD.score= NULL;
+		SDL_DestroyTexture(game_HUD.multiplier); game_HUD.multiplier= NULL;
+
+			// Cria nova pontuacao
+		snprintf(score_buffer, sizeof(score_buffer), "%10d", score);
+		create_text(renderer, &game_HUD.score, strncat(score_label, score_buffer, sizeof(score_label) - strlen(score_label) - 1), HUD_color, fnt);
+		strcpy(score_label, "Pontos: ");
+
+			// Cira novo multiplicador
+		snprintf(multiplier_buffer, sizeof(multiplier_buffer), "%3d", multiplier);
+		create_text(renderer, &game_HUD.multiplier, strncat(multiplier_label, multiplier_buffer, sizeof(multiplier_label) - strlen(multiplier_label) - 1), HUD_color, fnt);
+		strcpy(multiplier_label, "Multiplicador: ");
+
+		game_HUD.score_value = score;
+		game_HUD.multiplier_value = multiplier;
+	}
+
 		/*      Desenho         */
 	// Fundo
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -359,6 +436,7 @@ int main(int argc, char* argv[]) {
 			else{
 				printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
 
+				multiplier = 1;
 				int expired_circle_position[2] = {circle_array[i].x, circle_array[i].y};
 
 				create_event(&event, custom_events_start, CLIQUE, CLIQUE_EXPIRADO, expired_circle_position);
@@ -381,8 +459,8 @@ int main(int argc, char* argv[]) {
 			if (effects_array[i].display_vector[j].remaining_ticks >=0){
 				expired_effect = false;
 				
-				SDL_Rect framing = {effects_array[i].display_vector[j].x, effects_array[i].display_vector[j].y, effects_array[i].w, effects_array[i].h};
-				SDL_RenderCopy(renderer, effects_array[i].img, NULL, &framing);
+				SDL_Rect effect_framing = {effects_array[i].display_vector[j].x, effects_array[i].display_vector[j].y, effects_array[i].w, effects_array[i].h};
+				SDL_RenderCopy(renderer, effects_array[i].img, NULL, &effect_framing);
 
 				--effects_array[i].display_vector[j].remaining_ticks;
 			}
@@ -403,6 +481,14 @@ int main(int argc, char* argv[]) {
 
 	SDL_RenderFillRect(renderer, &line1);
 	SDL_RenderFillRect(renderer, &line2);
+
+
+	//HUD
+	SDL_Rect score_framing = {(WINDOW_WIDTH-game_HUD.w)-20, 0, game_HUD.w, (game_HUD.h/2)};
+	SDL_Rect multiplier_framing = {(WINDOW_WIDTH-game_HUD.w)-20, (game_HUD.h/2), game_HUD.w, (game_HUD.h/2)};
+
+	SDL_RenderCopy(renderer, game_HUD.score, NULL, &score_framing);
+	SDL_RenderCopy(renderer, game_HUD.multiplier, NULL, &multiplier_framing);
 
 	// Mostra desenho
 	SDL_RenderPresent(renderer);
@@ -428,17 +514,19 @@ int main(int argc, char* argv[]) {
 						break;
 					case CLIQUE_PERFEITO:
 						printf("Colisao perfeita!\n");
-						score+=9;
+						score+= (multiplier* 9);
+						multiplier +=2;
 						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
 						break;
 					case CLIQUE_BOM:
 						printf("Colisao boa!\n");
-                                                score+=3;
+                                                score+= (multiplier* 3);
+						multiplier +=1;
 						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
                                                 break;
 					case CLIQUE_RUIM:
 						printf("Colisao ruim!\n");
-                                                score+=1;
+                                                score+= multiplier;
 						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
                                                 break;
 					case CLIQUE_ERROU:
@@ -446,9 +534,12 @@ int main(int argc, char* argv[]) {
                                                 if (score > 0){
                                                         --score;
                                                 }
-
+						multiplier = 1;
 						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
                                                 break;
+				}
+				if (multiplier > MAX_MULTIPLIER){
+					multiplier = MAX_MULTIPLIER;
 				}
 				break;
 			case SDL_USEREVENT:
@@ -513,6 +604,14 @@ FIM:
     // Desaloca template dos efeitos
     for(int i = 0; i < EFFECT_NUMBER; i++){
             SDL_DestroyTexture(effect_template[i].img);
+    }
+
+    if (game_HUD.score){
+	    SDL_DestroyTexture(game_HUD.score);
+    }
+
+    if (game_HUD.multiplier){
+	    SDL_DestroyTexture(game_HUD.multiplier);
     }
 
     // Desaloca fonte
