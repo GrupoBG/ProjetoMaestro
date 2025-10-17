@@ -3,12 +3,18 @@
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_ttf.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <limits.h>
 #include <stdbool.h>
 
+
+// Trocar path para local com a fonte,
+// ao reexecutar codigo
+
+#define FONT_PATH_ITALIC "Libre_Baskerville/LibreBaskerville-Italic.ttf"
 
 
 // Configuracao de tela
@@ -17,13 +23,16 @@
 #define WINDOW_HEIGHT 900
 
 // Configuracao de array
-#define EFFECTS_ARRAY_SIZE 100
+#define EFFECTS_ARRAY_SIZE 1000
 #define CIRCLE_ARRAY_SIZE 100
 
 
 /* TODO 
  *
  * - Criar diferenciacao de pontuacao e display ao lidar com cliques/falhas (Ótimo, Bom, Ruim, Expirou e Errou)
+ *
+ * - Desenhar efeitos criados na tela.
+ * - Usar logica similar aos circulos para criar e destruir efeitos
  * 
  *
  */
@@ -39,6 +48,18 @@ typedef struct {
     int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
     SDL_Color color;
 } Circle;
+
+
+// Enum com todos os tipos de evento
+//
+typedef enum{
+	MOUSE,
+	TIME,
+	KEYBOARD
+
+	EVENTS_NUMBER
+} Event_types;
+
 
 
 // enum com todos os tipos de efeito
@@ -110,14 +131,15 @@ void create_text(SDL_Renderer* ren, SDL_Texture* text, char* text_content, SDL_C
 void create_image(SDL_Renderer* ren, SDL_Texture* text, char* text_content, SDL_Color color, TTF_Font* fnt);
 
 // Cria efeito baseado em array de template de efeitos
-void create_effect(Effect* effect_array, int effect_array_begin, int effect_array_end, Effect* effect_templates, int effect_template,
+void create_effect(Effect* effect_array, int* effect_array_begin, int* effect_array_end, Effect* effect_templates, int effect_template,
                         int x, int y, int* now, int delay, int spawn_time_variation, int base_ticks);
 
 // Destroi efeito
 void destroy_effect(Effect* effect_array, int pos);
 
 
-
+// Cria evento com codigo 'code' e informacao "data".
+int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_type event_effect);
 
 
 int main(int argc, char* argv[]) {
@@ -131,15 +153,6 @@ int main(int argc, char* argv[]) {
     int state = 1;
     int score = 0;
 
-    Effect effect_template[EFFECT_NUMBER];
-
-    for(int i = 0; i < EFFECT_NUMBER; i++){
-	    effect_template[i].tag = i;
-	    effect_template[i].img = NULL;
-	    effect_template[i].display_vector = NULL;
-	    effect_template[i].size = 0;
-    }
-
     // Lida com eventos
     Uint32 tick_counter = 0;
     Uint32 tickTime = 17;
@@ -147,6 +160,7 @@ int main(int argc, char* argv[]) {
 
     Uint32 next_note_tick = partiture[0].starting_tick;
 
+    // Buffer circular de efeitos
     Effect effects_array[EFFECTS_ARRAY_SIZE];
     int effects_array_begin = 0;
     int effects_array_end = 0;
@@ -198,21 +212,45 @@ int main(int argc, char* argv[]) {
         goto FIM;
     }
     // Cria fonte
-    fnt = TTF_Font
+    fnt = TTF_OpenFont(FONT_PATH_ITALIC, 20);
     if (!fnt) {
         printf("Erro ao criar fonte: %s\n", SDL_GetError());
         output = -1;
         goto FIM;
     }
-
     	/* Inicia templates de efeitos */
 
-    SDL_color cor_efeito = {0xFF, 0xFF, 0xFF, 0xFF};
+    Effect effect_template[EFFECT_NUMBER];
+
+    for(int i = 0; i < EFFECT_NUMBER; i++){
+            effect_template[i].tag = i;
+            effect_template[i].img = NULL;
+            effect_template[i].display_vector = NULL;
+            effect_template[i].size = 0;
+    }
+
+    SDL_Color cor_efeito = {0xFF, 0xFF, 0xFF, 0xFF};
+    
+    // Efeito clique perfeito
     create_text(renderer, effect_template[CLIQUE_PERFEITO].img, "Perfeito!", cor_efeito, fnt);
+    effect_template[CLIQUE_PERFEITO].size = 1;
+    // Efeito clique bom
     create_text(renderer, effect_template[CLIQUE_BOM].img, "Bom", cor_efeito, fnt);
+    effect_template[CLIQUE_BOM].size = 1;
+    // Efeito clique ruim
     create_text(renderer, effect_template[CLIQUE_RUIM].img, "Ruim", cor_efeito, fnt);
+    effect_template[CLIQUE_RUIM].size = 1;
+    // Efeito clique expirado
     create_text(renderer, effect_template[CLIQUE_EXPIRADO].img, "Expirado", cor_efeito, fnt);
+    effect_template[CLIQUE_EXPIRADO].size = 1;
+    // Efeito clique errado
     create_text(renderer, effect_template[CLIQUE_ERROU].img, "Errou", cor_efeito, fnt);
+    effect_template[CLIQUE_ERROU].size = 1;
+
+
+    	/*	Eventos custom	*/
+
+    Uint32 custom_events_start = SDL_RegisterEvents(EVENTS_NUMBER);
 
     	/*	Execucao	*/
 
@@ -259,6 +297,17 @@ int main(int argc, char* argv[]) {
 
         }
 
+	// Tenta limpar efeitos expirados do buffer
+	while( (!effects_array[effects_array_begin].display_vector) && (effects_array_begin != effects_array_end)){
+		++effects_array_begin;
+                effects_array_begin %= CIRCLE_ARRAY_SIZE;
+
+                // Avisa na tela
+                printf("\033[0;33mEfeito consumido do buffer!\033[0m\n"
+        	//, ((circle_array_end-circle_array_begin)>=0)?(circle_array_end-circle_array_begin):(CIRCLE_ARRAY_SIZE-circle_array_begin+circle_array_begin)
+		);
+	}
+
 		/*      Desenho         */
 	// Fundo
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -302,18 +351,45 @@ int main(int argc, char* argv[]) {
 			}
 			else{
 				printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
-                                /*
-                                 *
-                                 *      Criar efeito de mensagem de circulo nao clicado aqui!
-                                 *
-                                 *
-                                 */
+				create_event(&event, custom_events_start, MOUSE, CLIQUE_EXPIRADO);
                                 if (score > 0){
                                         --score;
                                 }
 			}
 		}
 	}
+
+
+	// Efeitos
+	for(int i = effects_array_begin; i != effects_array_end; i=((i+1)%EFFECTS_ARRAY_SIZE)){
+
+		// Checa se todas as particulas do efeito foram expiradas
+		bool expired_effect = true;
+		for(int j = 0; j < effects_array[i].size; j++){
+			// Desenha particulas validas para o efeito
+			if (effects_array[i].display_vector[j].remaining_ticks >=0){
+				expired_effect = false;
+				
+				/*
+		                 * Desenha efeitos validos
+                		 *
+		                 */
+
+				--effects_array[i].display_vector[j].remaining_ticks;
+
+			}
+		}
+		// destroi efeito expirado
+		if(expired_effect){
+			destroy_effect(effects_array, i);
+			effects_array[i].size = 0;
+		}
+		/*
+		 * Desenha efeitos validos
+		 *
+		 */
+	}
+
 
 	// Linhas
 	SDL_SetRenderDrawColor(renderer, 0xFF,0xFF,0xFF,0xFF);
@@ -344,24 +420,65 @@ int main(int argc, char* argv[]) {
 					case INT_MIN:
 						printf("sei la oque deu\n");
 						break;
-					case -1:
-						printf("Nao houve colisao! (-1 ponto)\n");
-						if (score > 0){
-							--score;
-						}
+					case CLIQUE_PERFEITO:
+						printf("Colisao perfeita!\n");
+						score+=9;
 						break;
-					default:
-						printf("Colisao bem-sucedida! (circulo na posicao: %d)\n", colision_result);
-						++score;
+					case CLIQUE_BOM:
+						printf("Colisao boa!\n");
+                                                score+=3;
+                                                break;
+					case CLIQUE_RUIM:
+						printf("Colisao ruim!\n");
+                                                score+=1;
+                                                break;
+					case CLIQUE_ERROU:
+                                                printf("Nao houve colisao! (-1 ponto)\n");
+                                                if (score > 0){
+                                                        --score;
+                                                }
+                                                break;
 				}
+				create_event(&event, custom_events_start, MOUSE, colision_result);
 				break;
+			case SDL_USEREVENT:
+				if (!*event.user.data1){
+                                        printf("Erro ao ler posicao do custom event!\n");
+                                        break
+                                }
+				if (!*event.user.data2){
+					printf("Erro ao ler efeito de custom event!\n");
+					break
+				}
+				int delay = -1;
+				int spawn_time_variation = -1;
+				int base_ticks = -1;
+
+				switch(*event.user.data2){
+					case CLIQUE_PERFEITO:
+					case CLIQUE_BOM:
+                                        case CLIQUE_RUIM:
+                                        case CLIQUE_EXPIRADO:
+					case CLIQUE_ERROU:
+						// Mensagem referente a clique/falta de clique no circulo
+						delay = 5;
+		                                spawn_time_variation = 0;
+		                                base_ticks = 10;
+						break;
+				}
+
+				create_effect(effect_array, &effect_array_begin, &effect_array_end, effect_templates, *event.user.data2,
+                        event.user.data1[0], event.user.data1[1], &tick_counter, delay, spawn_time_variation, base_ticks);
+
+				free(event.user.data1); event.user.data1 = NULL;
+				free(event.user.data2); event.user.data2 = NULL;
 	
         	}
 	}
 	else{
 		tickTime = 17;
 		++tick_counter;       // Incrementa ticks
-		printf("incrementa tick_counter! (tick_counter: %d. next_note_tick: %d)\n", tick_counter, next_note_tick);
+		//printf("incrementa tick_counter! (tick_counter: %d. next_note_tick: %d)\n", tick_counter, next_note_tick);
 	}
 
     }
@@ -386,6 +503,7 @@ FIM:
     // Desaloca template dos efeitos
     for(int i = 0; i < EFFECT_NUMBER; i++){
             SDL_DestroyTexture(effect_template[i].img);
+    }
 
     // Desaloca fonte
     if (fnt) {
@@ -460,8 +578,9 @@ void generate_random_circle(Circle* circle) {
 
 // Checa colisao de circulo
 //
-// retorna posicao do buffer se houve colisao
-// se nao, retorna -1
+// retorna qualidade do clique
+// 0 - perfeito
+// 1
 //
 // INT_MIN -> a
 int check_collision_circle() {
@@ -487,8 +606,21 @@ int check_collision_circle() {
 	if( 	( (dx * dx + dy * dy) <= (circle_array[i].radius * circle_array[i].radius) )
 		&& (circle_array[i].remaining_ticks >= 0) ){
 
+			int click_timing = abs( (circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks );
+
 			circle_array[i].remaining_ticks = -1;	// Remove circulo
-			output = i;
+
+			if ( click_timing < (circle_array[i].base_ticks/20) ){
+				output = CLIQUE_PERFEITO;
+			}
+
+			else if ( click_timing < (circle_array[i].base_ticks/10) ){
+                                output = CLIQUE_BOM;
+                        }
+
+			else{
+				output = CLIQUE_RUIM;
+			}
 			break;
 	}
     }
@@ -547,7 +679,7 @@ void create_image(SDL_Renderer* ren, SDL_Texture* text, char* text_content, SDL_
 }
 */
 
-void create_effect(Effect* effect_array, int effect_array_begin, int effect_array_end, Effect* effect_templates, int effect_template,
+void create_effect(Effect* effect_array, int* effect_array_begin, int* effect_array_end, Effect* effect_templates, int effect_template,
 			int x, int y, int* now, int delay, int spawn_time_variation, int base_ticks){
 
 	if( ((effect_array_end+1)% EFFECTS_ARRAY_SIZE) != effect_array_begin ){
@@ -558,14 +690,18 @@ void create_effect(Effect* effect_array, int effect_array_begin, int effect_arra
 		int next_spawn = (*now) + delay;
 
 		for (int i = 0; i < effect_array[effect_array_end].size; i++){
-			effect_array[effect_array_end].display_vector[i]->x = x;
-			effect_array[effect_array_end].display_vector[i]->y = y;
-			effect_array[effect_array_end].display_vector[i]->starting_tick = next_spawn;
-			effect_array[effect_array_end].display_vector[i]->remaining_ticks = base_ticks;
-        		effect_array[effect_array_end].display_vector[i]->base_ticks = base_ticks;
+			effect_array[effect_array_end].display_vector[i].x = x;
+			effect_array[effect_array_end].display_vector[i].y = y;
+			effect_array[effect_array_end].display_vector[i].starting_tick = next_spawn;
+			effect_array[effect_array_end].display_vector[i].remaining_ticks = base_ticks;
+        		effect_array[effect_array_end].display_vector[i].base_ticks = base_ticks;
 
 			next_spawn += spawn_time_variation;
 		}
+
+
+		++(*effect_array_end);
+		(*effect_array_end) %= EFFECTS_ARRAY_SIZE;
 	}
 	else{
 		printf("Erro! Muitos efeitos na tela\n");
@@ -573,10 +709,55 @@ void create_effect(Effect* effect_array, int effect_array_begin, int effect_arra
 
 }
 
-void destroy_effect(Effect* effect_array, int pos){
+void destroy_effect(Effect* effects_array, int pos){
 	assert(effects_array[pos].display_vector);
 	free(effects_array[pos].display_vector);
+	effects_array[pos].display_vector = NULL;
 }
+
+
+int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_type event_effect){
+
+	evt->user.type = SDL_USEREVENT;
+	evt->user.code = custom_events_start + code;
+
+	int result = -1;
+	switch(code){
+		case 0: // Evento que cria efeito ao clicar
+
+			// Salva posicao do mouse em data1
+			evt->user.data1 = (int*) malloc(2* sizeof(int));
+			SDL_GetMouseState(evt->user.data1[0], evt->user.data1[1]);
+
+			// Salva tag do efeito a ser realizado apos evento em data2
+			evt->user.data2 = (Effect_type*) malloc(sizeof(Effect_type));
+		        evt->user.data2->tag = event_effect;
+
+			// Tenta jogar evento na fila
+			result = SDL_PushEvent(evt);
+
+			break;
+
+	}
+
+	// Se falhar, diz que falhou e desaloca memoria (seta para NULL para evitar dangling pointer)
+	if (result < 0){
+		fprintf(stderr, "SDL_PushEvent falhou: %s\n", SDL_GetError());
+	
+		if(evt->user.data1){
+			free(evt->user.data1); evt->user.data1 = NULL;
+		}
+		if(evt->user.data2){
+                        free(evt->user.data2); evt->user.data2 = NULL;
+                }
+
+	}
+
+	// Retorna se o evento foi enviado ou nao para a fila
+	return result;
+
+}
+
 
 
 /*
