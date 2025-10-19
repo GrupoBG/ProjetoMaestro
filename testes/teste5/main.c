@@ -173,8 +173,6 @@ int main(int argc, char* argv[]) {
     game_HUD.w = 200;
     game_HUD.h = 100;
 
-    
-
     game_HUD.score = NULL;
     game_HUD.multiplier = NULL;
 
@@ -218,7 +216,7 @@ int main(int argc, char* argv[]) {
         goto FIM;
     }
     // Cria a janela
-    window = SDL_CreateWindow("Prototipo 3",
+    window = SDL_CreateWindow("Prototipo 5",
                                           SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                                           WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     if (!window) {
@@ -426,7 +424,32 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
+			// Cria circulo exterior
+			int click_timing = abs( (circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks );
+
+			if ( click_timing <= (circle_array[i].base_ticks/20) ){  // 10% do tempo
+
+				int external_circle_radius = circle_array[i].radius + click_timing;
+
+                                circleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                        0xFF, 0xFF, 0xFF, 0xFF);
+                        }
+			else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
+				
+				int external_circle_radius = circle_array[i].radius + click_timing;
+
+                                circleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                        0x00, 0x00, 0xFF, 0xFF);
+                        }
+                        else{
+				int external_circle_radius = circle_array[i].radius + click_timing;
+
+                                circleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                        0xFF, 0x00, 0x00, 0xFF);
+                        }
+
 			--circle_array[i].remaining_ticks;
+
 
 			if(circle_array[i].remaining_ticks >=0){
 				filledCircleRGBA(renderer, circle_array[i].x, circle_array[i].y, circle_array[i].radius,
@@ -669,7 +692,7 @@ void generate_random_circle(Circle* circle) {
 
     circle->starting_tick = 15 + (rand() % 46);	// Circulo inicia entre [0,25s;1s]
 
-    circle-> base_ticks = 180 + (rand() % 301); // Circulos no intervalo de [3s;8s]
+    circle-> base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
 
     circle-> remaining_ticks = circle->base_ticks;
 
@@ -718,11 +741,11 @@ int check_collision_circle(int* x, int* y) {
 
 			circle_array[i].remaining_ticks = -1;	// Remove circulo
 
-			if ( click_timing < (circle_array[i].base_ticks/20) ){
+			if ( click_timing < (circle_array[i].base_ticks/20) ){	// 10% do tempo
 				output = CLIQUE_PERFEITO;
 			}
 
-			else if ( click_timing < (circle_array[i].base_ticks/10) ){
+			else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
                                 output = CLIQUE_BOM;
                         }
 
