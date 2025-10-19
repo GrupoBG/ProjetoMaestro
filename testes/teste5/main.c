@@ -431,20 +431,20 @@ int main(int argc, char* argv[]) {
 
 				int external_circle_radius = circle_array[i].radius + click_timing;
 
-                                circleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                                aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
                         0xFF, 0xFF, 0xFF, 0xFF);
                         }
 			else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
 				
 				int external_circle_radius = circle_array[i].radius + click_timing;
 
-                                circleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                                aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
                         0x00, 0x00, 0xFF, 0xFF);
                         }
                         else{
 				int external_circle_radius = circle_array[i].radius + click_timing;
 
-                                circleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                                aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
                         0xFF, 0x00, 0x00, 0xFF);
                         }
 
@@ -483,7 +483,13 @@ int main(int argc, char* argv[]) {
 				expired_effect = false;
 				
 				SDL_Rect effect_framing = {effects_array[i].display_vector[j].x, effects_array[i].display_vector[j].y, effects_array[i].w, effects_array[i].h};
+
+
+				double fade_status = ((double) effects_array[i].display_vector[j].remaining_ticks)/( (double)effects_array[i].display_vector[j].base_ticks);
+
+				SDL_SetTextureAlphaMod(effects_array[i].img, ((int) (255 * fade_status)));
 				SDL_RenderCopy(renderer, effects_array[i].img, NULL, &effect_framing);
+				SDL_SetTextureAlphaMod(effects_array[i].img, 0xFF);
 
 				--effects_array[i].display_vector[j].remaining_ticks;
 			}
