@@ -29,12 +29,14 @@
 #define MAX_SCORE 9999999999
 #define MAX_MULTIPLIER 99
 
-/* TODO 
+/* DONE
  *
  * - Criar diferenciacao de pontuacao e display ao lidar com cliques/falhas (Ótimo, Bom, Ruim, Expirou e Errou)
  *
  * - Desenhar efeitos criados na tela.
  * - Usar logica similar aos circulos para criar e destruir efeitos
+ * - HUD basica
+ * - Melhoria no sistema de pontuacao para clicks
  * 
  *
  */
