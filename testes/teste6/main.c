@@ -39,9 +39,8 @@
  *
  */
 
-
-
 	/*	Definicao de tipos de nota	*/
+
 typedef struct {
 	Sint16 x, y;
 	Sint16 radius;
@@ -113,11 +112,6 @@ typedef struct{
 	}
 
 } Note_display;
-
-
-
-
-
 
 	/*	Definicao de evento	*/
 
@@ -232,6 +226,7 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 int main(int argc, char* argv[]) {
 
 	/*      Iniciacao de globais    */
+
     int output = 0;
 
     int sdl_init_code = -1;
@@ -276,12 +271,14 @@ int main(int argc, char* argv[]) {
 
 
 	/*	Declaracoes SDL		*/
+
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
 
     TTF_Font* fnt = NULL;
 
 	/*	Iniciacao do SDL	*/
+
     sdl_init_code = SDL_Init(SDL_INIT_VIDEO);
     if (sdl_init_code < 0) {
         printf("Erro ao inicializar SDL: %s\n", SDL_GetError());
