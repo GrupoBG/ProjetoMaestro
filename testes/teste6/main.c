@@ -29,50 +29,111 @@
 #define MAX_SCORE 9999999999
 #define MAX_MULTIPLIER 99
 
-/* DONE
+/* TODO 
  *
- * - Criar diferenciacao de pontuacao e display ao lidar com cliques/falhas (Ótimo, Bom, Ruim, Expirou e Errou)
+ *	- Implementar logica de notas de fato (tirando o stub)
  *
- * - Desenhar efeitos criados na tela.
- * - Usar logica similar aos circulos para criar e destruir efeitos
- * - HUD basica
- * - Melhoria no sistema de pontuacao para clicks
+ *	- Pensar em arte para colocar como background
+ *
  * 
  *
  */
 
+	/*	Definicao de tipos de nota	*/
+
 typedef struct {
-    int x, y;
-    int radius;
-    int partition;	// Diz a qual particao o circulo pertence. partition<0 -> invalido
-
-    int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
-
-    int base_ticks; // Diz quantidade de tempo que circulo deve ficar na tela em ticks
-    int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
-    SDL_Color color;
+	Sint16 x, y;
+	Sint16 radius;
 } Circle;
 
+typedef struct {
+	Sint16 x1, y1;
+	Sint16 x2, y2;
+} Straight;
+typedef struct{
+	Sint16 x, y;
+	Sint16 radius;
+	Sint16 start, end;
+} Arc;
+
+
+	/*	Definicao de nota	*/
+
+// Tipo de nota
+typedef enum{
+	CLICK,
+	MULTI_CLICK,
+	DRAG,
+
+
+	NOTE_NUMBER
+} Note_type;
+
+
+// Nota a ser referenciada
+typedef struct{
+	Note_type type;
+
+	int size;
+	SDL_Texture** img;
+} Note;
+
+
+// Tipo de parte de nota
+typedef enum{
+	// Tipos que usam SDL_gfx
+	CIRCLE,
+	STRAIGHT,
+	ARC,
+	// Tipos que nao usao SDL_gfx
+	IMAGE,
+
+
+	NOTE_DISPLAY_NUMBER
+} Note_display_type;
+
+
+// Cada parte da nota
+typedef struct{
+	int partition;      // Diz a qual particao o circulo pertence. partition<0 -> invalido
+	int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
+
+        int base_ticks; // Diz quantidade de tempo que circulo deve ficar na tela em ticks
+        int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
+
+        SDL_Color color;
+
+	Note_display_type type;
+
+	union specifics{
+		Circle c;
+		Straight s;
+		Arc a;
+	}
+
+} Note_display;
+
+	/*	Definicao de evento	*/
 
 // Enum com todos os tipos de evento
 //
 typedef enum{
-	CLIQUE,
+	CLICK,
 	TIME,
 	KEYBOARD,
 
 	EVENTS_NUMBER
 } Event_types;
 
-
+	/*	Definicao de efeito	*/
 
 // enum com todos os tipos de efeito
 typedef enum{
-	CLIQUE_PERFEITO, 
-	CLIQUE_BOM,
-	CLIQUE_RUIM,
-	CLIQUE_EXPIRADO,
-	CLIQUE_ERROU,
+	CLICK_PERFEITO, 
+	CLICK_BOM,
+	CLICK_RUIM,
+	CLICK_EXPIRADO,
+	CLICK_ERROU,
 
 
 	EFFECT_NUMBER
@@ -101,6 +162,8 @@ typedef struct{
 
 } Effect;
 
+
+	/*	Definicao de HUD	*/
 typedef struct{
 	SDL_Texture* score;
 	SDL_Texture* multiplier;
@@ -108,6 +171,8 @@ typedef struct{
 	int score_value;
 	short multiplier_value;
 } HUD;
+
+	/*	Globais		*/
 
 
 // Sequencia de todas as notas do jogo
@@ -161,6 +226,7 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 int main(int argc, char* argv[]) {
 
 	/*      Iniciacao de globais    */
+
     int output = 0;
 
     int sdl_init_code = -1;
@@ -205,12 +271,14 @@ int main(int argc, char* argv[]) {
 
 
 	/*	Declaracoes SDL		*/
+
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
 
     TTF_Font* fnt = NULL;
 
 	/*	Iniciacao do SDL	*/
+
     sdl_init_code = SDL_Init(SDL_INIT_VIDEO);
     if (sdl_init_code < 0) {
         printf("Erro ao inicializar SDL: %s\n", SDL_GetError());
@@ -264,20 +332,20 @@ int main(int argc, char* argv[]) {
 
     
     // Efeito clique perfeito
-    create_text(renderer, &effect_template[CLIQUE_PERFEITO].img, "Perfeito!", effect_color, fnt);
-    effect_template[CLIQUE_PERFEITO].size = 1;
+    create_text(renderer, &effect_template[CLICK_PERFEITO].img, "Perfeito!", effect_color, fnt);
+    effect_template[CLICK_PERFEITO].size = 1;
     // Efeito clique bom
-    create_text(renderer, &effect_template[CLIQUE_BOM].img, "Bom", effect_color, fnt);
-    effect_template[CLIQUE_BOM].size = 1;
+    create_text(renderer, &effect_template[CLICK_BOM].img, "Bom", effect_color, fnt);
+    effect_template[CLICK_BOM].size = 1;
     // Efeito clique ruim
-    create_text(renderer, &effect_template[CLIQUE_RUIM].img, "Ruim", effect_color, fnt);
-    effect_template[CLIQUE_RUIM].size = 1;
+    create_text(renderer, &effect_template[CLICK_RUIM].img, "Ruim", effect_color, fnt);
+    effect_template[CLICK_RUIM].size = 1;
     // Efeito clique expirado
-    create_text(renderer, &effect_template[CLIQUE_EXPIRADO].img, "Expirado", effect_color, fnt);
-    effect_template[CLIQUE_EXPIRADO].size = 1;
+    create_text(renderer, &effect_template[CLICK_EXPIRADO].img, "Expirado", effect_color, fnt);
+    effect_template[CLICK_EXPIRADO].size = 1;
     // Efeito clique errado
-    create_text(renderer, &effect_template[CLIQUE_ERROU].img, "Errou", effect_color, fnt);
-    effect_template[CLIQUE_ERROU].size = 1;
+    create_text(renderer, &effect_template[CLICK_ERROU].img, "Errou", effect_color, fnt);
+    effect_template[CLICK_ERROU].size = 1;
 
     	/*	Inicia HUD	*/
 
@@ -464,7 +532,7 @@ int main(int argc, char* argv[]) {
 				multiplier = 1;
 				int expired_circle_position[2] = {circle_array[i].x, circle_array[i].y};
 
-				create_event(&event, custom_events_start, CLIQUE, CLIQUE_EXPIRADO, expired_circle_position);
+				create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
                                 if (score > 0){
                                         --score;
                                 }
@@ -543,30 +611,30 @@ int main(int argc, char* argv[]) {
 					case INT_MIN:
 						printf("sei la oque deu\n");
 						break;
-					case CLIQUE_PERFEITO:
+					case CLICK_PERFEITO:
 						printf("Colisao perfeita!\n");
 						score+= (multiplier* 9);
 						multiplier +=2;
-						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
+						create_event(&event, custom_events_start, CLICK, colision_result, circle_position);
 						break;
-					case CLIQUE_BOM:
+					case CLICK_BOM:
 						printf("Colisao boa!\n");
                                                 score+= (multiplier* 3);
 						multiplier +=1;
-						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
+						create_event(&event, custom_events_start, CLICK, colision_result, circle_position);
                                                 break;
-					case CLIQUE_RUIM:
+					case CLICK_RUIM:
 						printf("Colisao ruim!\n");
                                                 score+= multiplier;
-						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
+						create_event(&event, custom_events_start, CLICK, colision_result, circle_position);
                                                 break;
-					case CLIQUE_ERROU:
+					case CLICK_ERROU:
                                                 printf("Nao houve colisao! (-1 ponto)\n");
                                                 if (score > 0){
                                                         --score;
                                                 }
 						multiplier = 1;
-						create_event(&event, custom_events_start, CLIQUE, colision_result, circle_position);
+						create_event(&event, custom_events_start, CLICK, colision_result, circle_position);
                                                 break;
 				}
 				if (multiplier > MAX_MULTIPLIER){
@@ -587,11 +655,11 @@ int main(int argc, char* argv[]) {
 				int base_ticks = -1;
 
 				switch( *(Effect_type*)event.user.data2 ){
-					case CLIQUE_PERFEITO:
-					case CLIQUE_BOM:
-                                        case CLIQUE_RUIM:
-                                        case CLIQUE_EXPIRADO:
-					case CLIQUE_ERROU:
+					case CLICK_PERFEITO:
+					case CLICK_BOM:
+                                        case CLICK_RUIM:
+                                        case CLICK_EXPIRADO:
+					case CLICK_ERROU:
 						// Mensagem referente a clique/falta de clique no circulo
 						delay = 5;
 		                                spawn_time_variation = 0;
@@ -733,7 +801,7 @@ int check_collision_circle(int* x, int* y) {
 	return INT_MIN;
     }
 
-    int output = CLIQUE_ERROU;
+    int output = CLICK_ERROU;
 
 
     for(int i = ((circle_array_end-1 + CIRCLE_ARRAY_SIZE)%CIRCLE_ARRAY_SIZE);
@@ -750,15 +818,15 @@ int check_collision_circle(int* x, int* y) {
 			circle_array[i].remaining_ticks = -1;	// Remove circulo
 
 			if ( click_timing < (circle_array[i].base_ticks/20) ){	// 10% do tempo
-				output = CLIQUE_PERFEITO;
+				output = CLICK_PERFEITO;
 			}
 
 			else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
-                                output = CLIQUE_BOM;
+                                output = CLICK_BOM;
                         }
 
 			else{
-				output = CLIQUE_RUIM;
+				output = CLICK_RUIM;
 			}
 
 			(*x) = circle_array[i].x;
@@ -865,7 +933,7 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 
 	int result = -1;
 	switch(code){
-		case CLIQUE: // Evento que cria efeito ao clicar
+		
 
 			// Salva posicao do mouse em data1
 			evt->user.data1 = (int*) malloc(2* sizeof(int));
