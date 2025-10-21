@@ -16,7 +16,6 @@
 
 #define FONT_PATH_ITALIC "Libre_Baskerville/LibreBaskerville-Italic.ttf"
 
-
 // Configuracao de tela
 #define PARTITION_WIDTH 500
 #define WINDOW_WIDTH 1500
@@ -24,7 +23,7 @@
 
 // Configuracao de array
 #define EFFECTS_ARRAY_SIZE 1000
-#define CIRCLE_ARRAY_SIZE 100
+#define NOTE_ARRAY_SIZE 100
 
 #define MAX_SCORE 9999999999
 #define MAX_MULTIPLIER 99
@@ -42,20 +41,16 @@
 	/*	Definicao de tipos de nota	*/
 
 typedef struct {
-	Sint16 x, y;
 	Sint16 radius;
 } Circle;
 
 typedef struct {
-	Sint16 x1, y1;
 	Sint16 x2, y2;
-} Straight;
+} Straight_line;
 typedef struct{
-	Sint16 x, y;
 	Sint16 radius;
 	Sint16 start, end;
 } Arc;
-
 
 	/*	Definicao de nota	*/
 
@@ -70,48 +65,56 @@ typedef enum{
 } Note_type;
 
 
-// Nota a ser referenciada
-typedef struct{
-	Note_type type;
-
-	int size;
-	SDL_Texture** img;
-} Note;
-
-
 // Tipo de parte de nota
 typedef enum{
-	// Tipos que usam SDL_gfx
-	CIRCLE,
-	STRAIGHT,
-	ARC,
-	// Tipos que nao usao SDL_gfx
-	IMAGE,
+        // Tipos que usam SDL_gfx
+        CIRCLE,
+        STRAIGHT,
+        ARC,
+        // Tipos que nao usao SDL_gfx
+        IMAGE,
 
 
-	NOTE_DISPLAY_NUMBER
+        NOTE_DISPLAY_NUMBER
 } Note_display_type;
+
 
 
 // Cada parte da nota
 typedef struct{
-	int partition;      // Diz a qual particao o circulo pertence. partition<0 -> invalido
-	int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
+	Sint16 x, y;	// Posicao na tela
+
+        int partition;      // Diz a qual particao o circulo pertence. partition<0 -> invalido
+        int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
 
         int base_ticks; // Diz quantidade de tempo que circulo deve ficar na tela em ticks
         int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
 
         SDL_Color color;
 
-	Note_display_type type;
+	//tagged union definindo tipo de nota
+        Note_display_type type;
+        union {
+                Circle c;
+                Straight_line s;
+                Arc a;
 
-	union specifics{
-		Circle c;
-		Straight s;
-		Arc a;
-	}
+		SDL_Texture* img;
+        }
 
 } Note_display;
+
+
+// Nota a ser referenciada
+typedef struct{
+	Note_type type;
+
+	int size;
+
+	SDL_Texture** img;
+	Note_display* display_vector;
+	
+} Note;
 
 	/*	Definicao de evento	*/
 
@@ -174,17 +177,19 @@ typedef struct{
 
 	/*	Globais		*/
 
-
-// Sequencia de todas as notas do jogo
-Circle partiture[2000];
+// Sequencia de todas as notas da partida
+Note partiture[2000];
 int partiture_next = 0;
 int partiture_size = 2000;
 
+// Total de particoes de instrumentos existentes na musica
+int total_partitions = 3;
+
 // Array de circulos na memoria compartilhada, usando vetor circular
 // usado para indicar quantos circulos estao presentes na tela
-Circle circle_array[CIRCLE_ARRAY_SIZE];
-int circle_array_begin = 0;
-int circle_array_end = 0;
+Note note_array[NOTE_ARRAY_SIZE];
+int note_array_begin = 0;
+int note_array_end = 0;
 
 // Lida com evento
 int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms);
@@ -192,7 +197,7 @@ int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms);
 // Driver que produz partitura
 //
 // Futuramente, menu principal entrega partitura para jogo
-void generate_random_circle(Circle* circle);
+void generate_random_note(Note* circle);
 
 // Checa se o mouse acertou o circulo
 //
@@ -200,10 +205,10 @@ void generate_random_circle(Circle* circle);
 int check_collision_circle(int* x, int* y);
 
 // Enche array com circulos vazios
-void initiate_circle_array(Circle* array, int array_size);
+void initiate_note_array(Note* array, int array_size);
 
 // Enche array com circulos validos aleatorios
-void fill_circle_array(Circle* array, int array_size);
+void fill_note_array(Note* array, int array_size);
 
 // Cria texto em ponteiro de textura
 void create_text(SDL_Renderer* ren, SDL_Texture** text, char* text_content, SDL_Color color, TTF_Font* fnt);
@@ -221,6 +226,10 @@ void destroy_effect(Effect* effect_array, int pos);
 
 // Cria evento com codigo 'code' e informacao "data".
 int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_type event_effect, int position[2]);
+
+
+// Pega nota vazia e inicia com valores reais
+void initiate_note(Note n);
 
 
 int main(int argc, char* argv[]) {
@@ -266,8 +275,8 @@ int main(int argc, char* argv[]) {
 
     srand(time(NULL));  // Gera chave aleatoria
 
-    initiate_circle_array(circle_array, CIRCLE_ARRAY_SIZE);
-    fill_circle_array(partiture, partiture_size);
+    initiate_note_array(note_array, NOTE_ARRAY_SIZE);
+    fill_note_array(partiture, partiture_size);
 
 
 	/*	Declaracoes SDL		*/
@@ -315,7 +324,23 @@ int main(int argc, char* argv[]) {
         output = -1;
         goto FIM;
     }
-    	/* Inicia templates de efeitos */
+	
+
+    	/*	Inicia templates de notas	*/
+    Note note_template[NOTE_NUMBER];
+
+    for(int i = 0; i < NOTE_NUMBER; i++){
+	    // Nullify array
+            note_template[i].type = i;
+	    note_template[i].size = 0;
+            note_template[i].img = NULL;
+            note_template[i].display_vector = NULL;
+
+	    // Fill array
+	    initiate_note(note_template[i]);
+    }
+
+    	/*	Inicia templates de efeitos	*/
 
     Effect effect_template[EFFECT_NUMBER];
 
@@ -326,26 +351,36 @@ int main(int argc, char* argv[]) {
 	    effect_template[i].h = 50;
             effect_template[i].display_vector = NULL;
             effect_template[i].size = 0;
+
+	    char* string;
+	    // Seta string (caso tenha)
+	    switch(i){
+			case CLICK_PERFEITO: 
+			    string = "Perfeito!";
+			    break;
+			case CLICK_BOM:
+			    string = "Bom";
+                            break;
+			case CLICK_RUIM:
+			    string = "Ruim";
+			    break;
+			case CLICK_EXPIRADO:
+			    string = "Expirado";
+			    break;
+	    }
+	    // Inicia efeito no vetor
+	    SDL_Color effect_color = {0xFF, 0xFF, 0xFF, 0xFF};
+	    switch(i){
+		    	// Eventos de texto com 1 de tamanho
+                        case CLICK_PERFEITO:
+                        case CLICK_BOM:
+                        case CLICK_RUIM:
+                        case CLICK_EXPIRADO:
+                            effect_template[i].size = 1;
+			    create_text(renderer, &effect_template[i].img, string, effect_color, fnt);
+                            break;
+            }
     }
-
-    SDL_Color effect_color = {0xFF, 0xFF, 0xFF, 0xFF};
-
-    
-    // Efeito clique perfeito
-    create_text(renderer, &effect_template[CLICK_PERFEITO].img, "Perfeito!", effect_color, fnt);
-    effect_template[CLICK_PERFEITO].size = 1;
-    // Efeito clique bom
-    create_text(renderer, &effect_template[CLICK_BOM].img, "Bom", effect_color, fnt);
-    effect_template[CLICK_BOM].size = 1;
-    // Efeito clique ruim
-    create_text(renderer, &effect_template[CLICK_RUIM].img, "Ruim", effect_color, fnt);
-    effect_template[CLICK_RUIM].size = 1;
-    // Efeito clique expirado
-    create_text(renderer, &effect_template[CLICK_EXPIRADO].img, "Expirado", effect_color, fnt);
-    effect_template[CLICK_EXPIRADO].size = 1;
-    // Efeito clique errado
-    create_text(renderer, &effect_template[CLICK_ERROU].img, "Errou", effect_color, fnt);
-    effect_template[CLICK_ERROU].size = 1;
 
     	/*	Inicia HUD	*/
 
@@ -395,12 +430,12 @@ int main(int argc, char* argv[]) {
 
 	// Tenta gerar novos circulos
 	if ( (next_note_tick <= tick_counter)
-	&& (((circle_array_end + 1)%CIRCLE_ARRAY_SIZE) != circle_array_begin) ){
+	&& (((note_array_end + 1)%NOTE_ARRAY_SIZE) != note_array_begin) ){
 
                 // Cria circulo
-                circle_array[circle_array_end] = partiture[partiture_next];
-                ++circle_array_end;
-                circle_array_end %= CIRCLE_ARRAY_SIZE;
+                note_array[note_array_end] = partiture[partiture_next];
+                ++note_array_end;
+                note_array_end %= NOTE_ARRAY_SIZE;
 
 		// Atualiza proximo circulo na partitura
                 ++partiture_next;
@@ -410,19 +445,19 @@ int main(int argc, char* argv[]) {
 
 
                 printf("\033[0;32mCirculo criado! (espacos possiveis para novos circulo: %d )\033[0m\n",
-	((circle_array_end-circle_array_begin)>=0)?(CIRCLE_ARRAY_SIZE-(circle_array_end-circle_array_begin)):CIRCLE_ARRAY_SIZE-(CIRCLE_ARRAY_SIZE-circle_array_begin+circle_array_end));
+	((note_array_end-note_array_begin)>=0)?(NOTE_ARRAY_SIZE-(note_array_end-note_array_begin)):NOTE_ARRAY_SIZE-(NOTE_ARRAY_SIZE-note_array_begin+note_array_end));
 	}
 
 
 	// Tenta limpar circulos expirados do buffer
-	while (  (circle_array[circle_array_begin].remaining_ticks < 0) && (circle_array_begin != circle_array_end)){
+	while (  (note_array[note_array_begin].remaining_ticks < 0) && (note_array_begin != note_array_end)){
 
-                ++circle_array_begin;
-                circle_array_begin %= CIRCLE_ARRAY_SIZE;
+                ++note_array_begin;
+                note_array_begin %= NOTE_ARRAY_SIZE;
 
                 // Avisa na tela
                 printf("\033[0;33mCirculo consumido do buffer! (circulos restantes: %d)\033[0m\n",
-        ((circle_array_end-circle_array_begin)>=0)?(circle_array_end-circle_array_begin):(CIRCLE_ARRAY_SIZE-circle_array_begin+circle_array_begin) );
+        ((note_array_end-note_array_begin)>=0)?(note_array_end-note_array_begin):(NOTE_ARRAY_SIZE-note_array_begin+note_array_begin) );
 
         }
 
@@ -433,7 +468,7 @@ int main(int argc, char* argv[]) {
 
                 // Avisa na tela
                 printf("\033[0;33mEfeito consumido do buffer!\033[0m\n"
-        	//, ((circle_array_end-circle_array_begin)>=0)?(circle_array_end-circle_array_begin):(CIRCLE_ARRAY_SIZE-circle_array_begin+circle_array_begin)
+        	//, ((note_array_end-note_array_begin)>=0)?(note_array_end-note_array_begin):(NOTE_ARRAY_SIZE-note_array_begin+note_array_begin)
 		);
 	}
 
@@ -466,71 +501,71 @@ int main(int argc, char* argv[]) {
         SDL_RenderClear(renderer);
 
 	// Circulos
-	for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%CIRCLE_ARRAY_SIZE)){
+	for(int i = note_array_begin; i != note_array_end; i=((i+1)%NOTE_ARRAY_SIZE)){
 
 		//printf("Desenhando circulos!\n");
 
 		// Atualiza circulos com ticks
-		if(circle_array[i].remaining_ticks >=0){
+		if(note_array[i].remaining_ticks >=0){
 
 			// Efeito de fade in
-			if((circle_array[i].remaining_ticks) > (circle_array[i].base_ticks/2)){
+			if((note_array[i].remaining_ticks) > (note_array[i].base_ticks/2)){
 
-				if( 255 < (circle_array[i].color.a + ( 255/(circle_array[i].base_ticks/2) ) ) ){
-                                        circle_array[i].color.a = 255;
+				if( 255 < (note_array[i].color.a + ( 255/(note_array[i].base_ticks/2) ) ) ){
+                                        note_array[i].color.a = 255;
                                 }
 				else{
-					circle_array[i].color.a += ( 255/(circle_array[i].base_ticks/2) );
+					note_array[i].color.a += ( 255/(note_array[i].base_ticks/2) );
 				}
 			}
 
 			// Efeito de fade out
 			else{
-				if(circle_array[i].color.a > ( 255/(circle_array[i].base_ticks/2))){
-					circle_array[i].color.a -= ( 255/(circle_array[i].base_ticks/2) );
+				if(note_array[i].color.a > ( 255/(note_array[i].base_ticks/2))){
+					note_array[i].color.a -= ( 255/(note_array[i].base_ticks/2) );
 				}
 				else{
-					circle_array[i].color.a = 0;
+					note_array[i].color.a = 0;
 				}
 			}
 
 			// Cria circulo exterior
-			int click_timing = abs( (circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks );
+			int click_timing = abs( (note_array[i].base_ticks/2)-note_array[i].remaining_ticks );
 
-			if ( click_timing <= (circle_array[i].base_ticks/20) ){  // 10% do tempo
+			if ( click_timing <= (note_array[i].base_ticks/20) ){  // 10% do tempo
 
-				int external_circle_radius = circle_array[i].radius + click_timing;
+				int external_circle_radius = note_array[i].radius + click_timing;
 
-                                aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                                aacircleRGBA(renderer, note_array[i].x, note_array[i].y, external_circle_radius,
                         0xFF, 0xFF, 0xFF, 0xFF);
                         }
-			else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
+			else if ( click_timing < (note_array[i].base_ticks/5) ){ // (40-10)% do tempo
 				
-				int external_circle_radius = circle_array[i].radius + click_timing;
+				int external_circle_radius = note_array[i].radius + click_timing;
 
-                                aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                                aacircleRGBA(renderer, note_array[i].x, note_array[i].y, external_circle_radius,
                         0x00, 0x00, 0xFF, 0xFF);
                         }
                         else{
-				int external_circle_radius = circle_array[i].radius + click_timing;
+				int external_circle_radius = note_array[i].radius + click_timing;
 
-                                aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
+                                aacircleRGBA(renderer, note_array[i].x, note_array[i].y, external_circle_radius,
                         0xFF, 0x00, 0x00, 0xFF);
                         }
 
-			--circle_array[i].remaining_ticks;
+			--note_array[i].remaining_ticks;
 
 
-			if(circle_array[i].remaining_ticks >=0){
-				filledCircleRGBA(renderer, circle_array[i].x, circle_array[i].y, circle_array[i].radius,
-			circle_array[i].color.r, circle_array[i].color.g, circle_array[i].color.b, circle_array[i].color.a);
+			if(note_array[i].remaining_ticks >=0){
+				filledNoteRGBA(renderer, note_array[i].x, note_array[i].y, note_array[i].radius,
+			note_array[i].color.r, note_array[i].color.g, note_array[i].color.b, note_array[i].color.a);
 
 			}
 			else{
 				printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
 
 				multiplier = 1;
-				int expired_circle_position[2] = {circle_array[i].x, circle_array[i].y};
+				int expired_circle_position[2] = {note_array[i].x, note_array[i].y};
 
 				create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
                                 if (score > 0){
@@ -686,7 +721,7 @@ int main(int argc, char* argv[]) {
     printf("\033[36mTotal de circulos gerados: %d\033[0m\n", partiture_next);
 
 
-    printf("\n\n\033[36minicio do buffer: %d\nfim do buffer: %d\033[0m\n", circle_array_begin, circle_array_end);
+    printf("\n\n\033[36minicio do buffer: %d\nfim do buffer: %d\033[0m\n", note_array_begin, note_array_end);
 
     printf("\n\n\033[36mtempo proximo circulo: %d\ntempo final: %d\033[0m\n", next_note_tick, tick_counter);
 
@@ -762,26 +797,26 @@ int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms){
 // Driver
 //
 // Gera circulo aleatorio
-void generate_random_circle(Circle* circle) {
-    circle->partition = rand() % 3;	// Define particao
+void generate_random_note(Note* note) {
+    note->partition = rand() % total_partitions;	// Define particao
 
 
-    circle->starting_tick = 15 + (rand() % 46);	// Circulo inicia entre [0,25s;1s]
+    note->starting_tick = 15 + (rand() % 46);	// Circulo inicia entre [0,25s;1s]
 
-    circle-> base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
+    note-> base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
 
-    circle-> remaining_ticks = circle->base_ticks;
+    note-> remaining_ticks = note->base_ticks;
 
-    // Movido pra cima para ser usado em circle->x e circle->y
-    circle->radius = rand() % 51 + 20;  // Raio entre 20 e 70 pixels
+    // Movido pra cima para ser usado em note->x e note->y
+    note->radius = rand() % 51 + 20;  // Raio entre 20 e 70 pixels
 
-    circle->x = circle->radius + (rand() % (PARTITION_WIDTH - 2*circle->radius)) + ( circle->partition* PARTITION_WIDTH);
-    circle->y = circle->radius + (rand() % (WINDOW_HEIGHT - 2*circle->radius));
+    note->x = note->radius + (rand() % (PARTITION_WIDTH - 2*note->radius)) + ( note->partition* PARTITION_WIDTH);
+    note->y = note->radius + (rand() % (WINDOW_HEIGHT - 2*note->radius));
 
-    circle->color.r = rand() % 256;
-    circle->color.g = rand() % 256;
-    circle->color.b = rand() % 256;
-    circle->color.a = 0;
+    note->color.r = rand() % 256;
+    note->color.g = rand() % 256;
+    note->color.b = rand() % 256;
+    note->color.a = 0;
 }
 
 // Checa colisao de circulo
@@ -804,24 +839,24 @@ int check_collision_circle(int* x, int* y) {
     int output = CLICK_ERROU;
 
 
-    for(int i = ((circle_array_end-1 + CIRCLE_ARRAY_SIZE)%CIRCLE_ARRAY_SIZE);
-		    			i != ((circle_array_begin-1 + CIRCLE_ARRAY_SIZE )%CIRCLE_ARRAY_SIZE);
-										i=((i-1+ CIRCLE_ARRAY_SIZE)%CIRCLE_ARRAY_SIZE)){
-	int dx = (*x) - circle_array[i].x;
-	int dy = (*y) - circle_array[i].y;
+    for(int i = ((note_array_end-1 + NOTE_ARRAY_SIZE)%NOTE_ARRAY_SIZE);
+		    			i != ((note_array_begin-1 + NOTE_ARRAY_SIZE )%NOTE_ARRAY_SIZE);
+										i=((i-1+ NOTE_ARRAY_SIZE)%NOTE_ARRAY_SIZE)){
+	int dx = (*x) - note_array[i].x;
+	int dy = (*y) - note_array[i].y;
 
-	if( 	( (dx * dx + dy * dy) <= (circle_array[i].radius * circle_array[i].radius) )
-		&& (circle_array[i].remaining_ticks >= 0) ){
+	if( 	( (dx * dx + dy * dy) <= (note_array[i].radius * note_array[i].radius) )
+		&& (note_array[i].remaining_ticks >= 0) ){
 
-			int click_timing = abs( (circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks );
+			int click_timing = abs( (note_array[i].base_ticks/2)-note_array[i].remaining_ticks );
 
-			circle_array[i].remaining_ticks = -1;	// Remove circulo
+			note_array[i].remaining_ticks = -1;	// Remove circulo
 
-			if ( click_timing < (circle_array[i].base_ticks/20) ){	// 10% do tempo
+			if ( click_timing < (note_array[i].base_ticks/20) ){	// 10% do tempo
 				output = CLICK_PERFEITO;
 			}
 
-			else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
+			else if ( click_timing < (note_array[i].base_ticks/5) ){ // (40-10)% do tempo
                                 output = CLICK_BOM;
                         }
 
@@ -829,8 +864,8 @@ int check_collision_circle(int* x, int* y) {
 				output = CLICK_RUIM;
 			}
 
-			(*x) = circle_array[i].x;
-			(*y) = circle_array[i].y;
+			(*x) = note_array[i].x;
+			(*y) = note_array[i].y;
 
 			break;
 	}
@@ -839,23 +874,12 @@ int check_collision_circle(int* x, int* y) {
     return output;
 }
 
-// Enche array com circulos vazios
-void initiate_circle_array(Circle* array, int array_size){
-	for (int i = 0; i < array_size; i++){
-
-                circle_array[i].x = circle_array[i].y = circle_array[i].radius =
-				circle_array[i].partition = circle_array[i].remaining_ticks = circle_array[i].base_ticks = circle_array[i].starting_tick = -1;
-
-                circle_array[i].color.r = circle_array[i].color.g = circle_array[i].color.b = circle_array[i].color.a = 0x00;
-        }
-}
-
 // Driver
 //
 // Enche array com circulos validos aleatorios
-void fill_circle_array(Circle* array, int array_size){
+void fill_note_array(Note* array, int array_size){
 	for (int i = 0; i < array_size; i++){
-		generate_random_circle(&array[i]);
+		generate_random_note(&array[i]);
         }
 }
 
@@ -970,10 +994,54 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 }
 
 
+void initiate_note(Note n){
+	
+	// Coloca tamanho do display da nota
+	switch(note.type){
+                case CLICK:
+                case MULTI_CLICK:
+			note.size = 1;
+                        break;
+                case DRAG:
+			note.size = 3;
+                        break;
+        }
 
-/*
-int music_routine(){
+	// Aloca vetor de display
+	note.display_vector = (Note_display*) malloc( (note.size)* sizeof(Note_display));
 
+	// Aloca imagens a serem usadas
+	//
+	// So faz sentido se a nota possui alguma imagem
+	switch(note.type){
+		case CLICK:
+                case MULTI_CLICK:
+                case DRAG:
+                        break;
+	}
 
+	// Anula vetor de display
+	for(int i = 0; i < note.size; i++){
+		note.display_vector[i].x = note.display_vector[i].y =
+                                note.display_vector[i].partition = note.display_vector[i].remaining_ticks = note.display_vector[i].base_ticks = note.display_vector[i].starting_tick = -1;
+
+        	note.display_vector[i].color.r = note.display_vector[i].color.g = note.display_vector[i].color.b = note.display_vector[i].color.a = 0x00;
+
+		note.display_vector[i].type = NOTE_DISPLAY_NUMBER; // nota nula = nota maxima
+	}
+
+	// Insere os tipos de display presentes
+        switch(note.type){
+                case CLICK:
+			note.display_vector[0].type = CIRCLE;
+			break;
+                case MULTI_CLICK:
+			note.display_vector[0].type = CIRCLE;
+			break;
+                case DRAG:
+			note.display_vector[0].type = CIRCLE;	// Circulo inicial
+			note.display_vector[1].type = STRIGHT_LINE;	// Percurso
+			note.display_vector[2].type = CIRCLE;	// Circulo final
+                        break;
+        }
 }
-*/
