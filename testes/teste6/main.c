@@ -38,7 +38,7 @@
  *
  */
 
-	/*	Definicao de tipos de nota	*/
+/*	Definicao de tipos de nota	*/
 
 typedef struct {
 	Sint16 radius;
@@ -52,7 +52,7 @@ typedef struct{
 	Sint16 start, end;
 } Arc;
 
-	/*	Definicao de nota	*/
+/*	Definicao de nota	*/
 
 // Tipo de nota
 typedef enum{
@@ -67,15 +67,15 @@ typedef enum{
 
 // Tipo de parte de nota
 typedef enum{
-        // Tipos que usam SDL_gfx
-        CIRCLE,
-        STRAIGHT_LINE,
-        ARC,
-        // Tipos que nao usao SDL_gfx
-        IMAGE,
+	// Tipos que usam SDL_gfx
+	CIRCLE,
+	STRAIGHT_LINE,
+	ARC,
+	// Tipos que nao usao SDL_gfx
+	IMAGE,
 
 
-        NOTE_DISPLAY_NUMBER
+	NOTE_DISPLAY_NUMBER
 } Note_display_type;
 
 
@@ -84,23 +84,23 @@ typedef enum{
 typedef struct{
 	Sint16 x, y;	// Posicao na tela
 
-        int partition;      // Diz a qual particao o circulo pertence. partition<0 -> invalido
-        int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
+	int partition;      // Diz a qual particao o circulo pertence. partition<0 -> invalido
+	int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
 
-        int base_ticks; // Diz quantidade de tempo que circulo deve ficar na tela em ticks
-        int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
+	int base_ticks; // Diz quantidade de tempo que circulo deve ficar na tela em ticks
+	int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
 
-        SDL_Color color;
+	SDL_Color color;
 
 	//tagged union definindo tipo de nota
-        Note_display_type type;
-        union {
-                Circle c;
-                Straight_line s;
-                Arc a;
+	Note_display_type type;
+	union {
+		Circle c;
+		Straight_line s;
+		Arc a;
 
 		SDL_Texture* img;
-        };
+	};
 
 } Note_display;
 
@@ -114,22 +114,23 @@ typedef struct{
 
 	int size;
 	Note_display* display_vector;
-	
+
 } Note;
 
-	/*	Definicao de evento	*/
+/*	Definicao de evento	*/
 
 // Enum com todos os tipos de evento
 //
 typedef enum{
-	NOTE,
+	NOTE_CLICK,
+	NOTE_DRAG,
 	TIME,
 	KEYBOARD,
 
 	EVENTS_NUMBER
 } Event_types;
 
-	/*	Definicao de efeito	*/
+/*	Definicao de efeito	*/
 
 // enum com todos os tipos de efeito
 typedef enum{
@@ -167,7 +168,7 @@ typedef struct{
 } Effect;
 
 
-	/*	Definicao de HUD	*/
+/*	Definicao de HUD	*/
 typedef struct{
 	SDL_Texture* score;
 	SDL_Texture* multiplier;
@@ -176,7 +177,7 @@ typedef struct{
 	short multiplier_value;
 } HUD;
 
-	/*	Globais		*/
+/*	Globais		*/
 
 // Sequencia de todas as notas da partida
 Note partiture[2000];
@@ -222,7 +223,7 @@ void create_image(SDL_Renderer* ren, SDL_Texture** text, char* text_content, SDL
 
 // Cria efeito baseado em array de template de efeitos
 void create_effect(Effect* effect_array, int* effect_array_begin, int* effect_array_end, Effect* effect_templates, int effect_template,
-                        int x, int y, int* now, int delay, int spawn_time_variation, int base_ticks);
+		int x, int y, int* now, int delay, int spawn_time_variation, int base_ticks);
 
 // Destroi efeito
 void destroy_effect(Effect* effect_array, int pos);
@@ -240,668 +241,696 @@ int main(int argc, char* argv[]) {
 
 	/*      Iniciacao de globais    */
 
-    int output = 0;
+	int output = 0;
 
-    int sdl_init_code = -1;
-    int ttf_init_code = -1;
+	int sdl_init_code = -1;
+	int ttf_init_code = -1;
 
-    int state = 1;
-    int score = 0;
-    short multiplier = 1;
+	int state = 1;
+	int score = 0;
+	short multiplier = 1;
 
-    HUD game_HUD;
+	HUD game_HUD;
 
-    game_HUD.w = 200;
-    game_HUD.h = 100;
+	game_HUD.w = 200;
+	game_HUD.h = 100;
 
-    game_HUD.score = NULL;
-    game_HUD.multiplier = NULL;
+	game_HUD.score = NULL;
+	game_HUD.multiplier = NULL;
 
-    game_HUD.score_value = score;
-    game_HUD.multiplier_value = multiplier;
+	game_HUD.score_value = score;
+	game_HUD.multiplier_value = multiplier;
 
 
-    // Lida com eventos
-    Uint32 tick_counter = 0;
-    Uint32 tickTime = 17;
-    SDL_Event event;
+	// Lida com eventos
+	Uint32 tick_counter = 0;
+	Uint32 tickTime = 17;
+	SDL_Event event;
 
-    srand(time(NULL));  // Gera chave aleatoria
+	srand(time(NULL));  // Gera chave aleatoria
 
 	/*	Declaracoes SDL		*/
 
-    SDL_Window* window = NULL;
-    SDL_Renderer* renderer = NULL;
+	SDL_Window* window = NULL;
+	SDL_Renderer* renderer = NULL;
 
-    TTF_Font* fnt = NULL;
+	TTF_Font* fnt = NULL;
 
 	/*	Iniciacao do SDL	*/
 
-    sdl_init_code = SDL_Init(SDL_INIT_VIDEO);
-    if (sdl_init_code < 0) {
-        printf("Erro ao inicializar SDL: %s\n", SDL_GetError());
-	output = -1;
-        goto FIM;
-    }
-    // Cria a janela
-    window = SDL_CreateWindow("Prototipo 5",
-                                          SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                                          WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (!window) {
-        printf("Erro ao criar janela: %s\n", SDL_GetError());
-        output = -1;
-        goto FIM;
-    }
-    // Cria renderizador
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (!renderer) {
-        printf("Erro ao criar renderizador: %s\n", SDL_GetError());
-        output = -1;
-        goto FIM;
-    }
-    // Inicia ttf
-    ttf_init_code = TTF_Init();
-    if (ttf_init_code <0) {
-        printf("Erro ao iniciar TTF: %s\n", SDL_GetError());
-        output = -1;
-        goto FIM;
-    }
-    // Cria fonte
-    fnt = TTF_OpenFont(FONT_PATH_ITALIC, 20);
-    if (!fnt) {
-        printf("Erro ao criar fonte: %s\n", SDL_GetError());
-        output = -1;
-        goto FIM;
-    }
-	
-
-    	/*	Inicia templates de notas	*/
-    Note note_template[NOTE_NUMBER];
-
-    for(int i = 0; i < NOTE_NUMBER; i++){
-	    // Nullify array
-            note_template[i].type = i;
-	    note_template[i].size = 0;
-            note_template[i].img = NULL;
-            note_template[i].display_vector = NULL;
-
-	    // Fill array
-	    initiate_note(&note_template[i]);
-    }
-
-    /*      Inicia partitura circular de notas       */
-    for(int i = 0; i < partiture_size; i++){
-            generate_random_note(note_template, &partiture[i]);
-    }
-
-    Uint32 next_note_tick = partiture[0].display_vector[0].starting_tick;
-
-    	/*	Inicia templates de efeitos	*/
-
-    Effect effect_template[EFFECT_NUMBER];
-
-    for(int i = 0; i < EFFECT_NUMBER; i++){
-            effect_template[i].tag = i;
-            effect_template[i].img = NULL;
-	    effect_template[i].w = 100;
-	    effect_template[i].h = 50;
-            effect_template[i].display_vector = NULL;
-            effect_template[i].size = 0;
-
-	    char* string;
-	    // Seta string (caso tenha)
-	    switch(i){
-			case CLICK_PERFEITO: 
-			    string = "Perfeito!";
-			    break;
-			case CLICK_BOM:
-			    string = "Bom";
-                            break;
-			case CLICK_RUIM:
-			    string = "Ruim";
-			    break;
-			case CLICK_EXPIRADO:
-			    string = "Expirado";
-			    break;
-	    }
-	    // Inicia efeito no vetor
-	    SDL_Color effect_color = {0xFF, 0xFF, 0xFF, 0xFF};
-	    switch(i){
-		    	// Eventos de texto com 1 de tamanho
-                        case CLICK_PERFEITO:
-                        case CLICK_BOM:
-                        case CLICK_RUIM:
-                        case CLICK_EXPIRADO:
-                            effect_template[i].size = 1;
-			    create_text(renderer, &effect_template[i].img, string, effect_color, fnt);
-                            break;
-            }
-    }
-    	/*	Inicia buffer circular de efeitos	*/
-
-    Effect effects_array[EFFECTS_ARRAY_SIZE];
-    int effects_array_begin = 0;
-    int effects_array_end = 0;
-
-    for(int i = 0; i < EFFECTS_ARRAY_SIZE; i++){
-        effects_array[i].size = 0;
-    }
-
-    	/*	Inicia HUD	*/
-
-    SDL_Color HUD_color = {0xFF, 0xFF, 0xFF, 0xFF};
-
-    char score_buffer[20];
-    snprintf(score_buffer, sizeof(score_buffer), "%10d", score);
-
-    char score_label[50] = "Pontos: ";
-    create_text(renderer, &game_HUD.score, strncat(score_label, score_buffer, sizeof(score_label) - strlen(score_label) - 1), HUD_color, fnt);
-    strcpy(score_label, "Pontos: ");
-
-    if (!game_HUD.score){
-	printf("Erro ao iniciar pontuacao: %s\n", SDL_GetError());
-        output = -1;
-        goto FIM;
-    }
-
-    char multiplier_buffer[10];
-    snprintf(multiplier_buffer, sizeof(multiplier_buffer), "%3d", multiplier);
-
-    char multiplier_label[50] = "Multiplicador: ";
-    create_text(renderer, &game_HUD.multiplier, strncat(multiplier_label, multiplier_buffer, sizeof(multiplier_label) - strlen(multiplier_label) - 1), HUD_color, fnt);
-    strcpy(multiplier_label, "Multiplicador: ");
-
-    if (!game_HUD.multiplier){
-	printf("Erro ao iniciar multiplicador: %s\n", SDL_GetError());
-        output = -1;
-        goto FIM;
-    }
-
-    	/*	Eventos custom	*/
-
-    Uint32 custom_events_start = SDL_RegisterEvents(EVENTS_NUMBER);
-
-    	/*	Execucao	*/
-
-    while (state) {
-
-	// Checa se acabou a musica
-	if(partiture_next >= partiture_size){
-                state = 0;
-
-        	break;
-        }
-
-
-	// Tenta gerar novas notas
-	if ( (next_note_tick <= tick_counter)
-	&& (((note_array_end + 1)%NOTE_ARRAY_SIZE) != note_array_begin) ){
-
-                // Cria circulo
-                note_array[note_array_end] = partiture[partiture_next];
-                ++note_array_end;
-                note_array_end %= NOTE_ARRAY_SIZE;
-
-		// Atualiza proximo circulo na partitura
-                ++partiture_next;
-
-		// Atualiza proximo circulo na partitura e tempo da ultima nota
-                next_note_tick = tick_counter + partiture[partiture_next].display_vector[0].starting_tick;
-
-
-                printf("\033[0;32mCirculo criado! (espacos possiveis para novos circulo: %d )\033[0m\n",
-	((note_array_end-note_array_begin)>=0)?(NOTE_ARRAY_SIZE-(note_array_end-note_array_begin)):NOTE_ARRAY_SIZE-(NOTE_ARRAY_SIZE-note_array_begin+note_array_end));
+	sdl_init_code = SDL_Init(SDL_INIT_VIDEO);
+	if (sdl_init_code < 0) {
+		printf("Erro ao inicializar SDL: %s\n", SDL_GetError());
+		output = -1;
+		goto FIM;
+	}
+	// Cria a janela
+	window = SDL_CreateWindow("Prototipo 5",
+			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+			WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+	if (!window) {
+		printf("Erro ao criar janela: %s\n", SDL_GetError());
+		output = -1;
+		goto FIM;
+	}
+	// Cria renderizador
+	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	if (!renderer) {
+		printf("Erro ao criar renderizador: %s\n", SDL_GetError());
+		output = -1;
+		goto FIM;
+	}
+	// Inicia ttf
+	ttf_init_code = TTF_Init();
+	if (ttf_init_code <0) {
+		printf("Erro ao iniciar TTF: %s\n", SDL_GetError());
+		output = -1;
+		goto FIM;
+	}
+	// Cria fonte
+	fnt = TTF_OpenFont(FONT_PATH_ITALIC, 20);
+	if (!fnt) {
+		printf("Erro ao criar fonte: %s\n", SDL_GetError());
+		output = -1;
+		goto FIM;
 	}
 
 
-	// Tenta limpar notas expiradas do buffer
-	while (note_array_begin != note_array_end){
+	/*	Inicia templates de notas	*/
+	Note note_template[NOTE_NUMBER];
 
-		// Checa se primeira nota no vetor acabou
-		bool flag_note_ended = true;
-		for(int i = 0; i < note_array[note_array_begin].size; i++){
-			if (note_array[note_array_begin].display_vector[i].remaining_ticks >= 0){
-				flag_note_ended = false;
+	for(int i = 0; i < NOTE_NUMBER; i++){
+		// Nullify array
+		note_template[i].type = i;
+		note_template[i].size = 0;
+		note_template[i].img = NULL;
+		note_template[i].display_vector = NULL;
+
+		// Fill array
+		initiate_note(&note_template[i]);
+	}
+
+	/*      Inicia partitura circular de notas       */
+	for(int i = 0; i < partiture_size; i++){
+		generate_random_note(note_template, &partiture[i]);
+	}
+
+	Uint32 next_note_tick = partiture[0].display_vector[0].starting_tick;
+
+	/*	Inicia templates de efeitos	*/
+
+	Effect effect_template[EFFECT_NUMBER];
+
+	for(int i = 0; i < EFFECT_NUMBER; i++){
+		effect_template[i].tag = i;
+		effect_template[i].img = NULL;
+		effect_template[i].w = 100;
+		effect_template[i].h = 50;
+		effect_template[i].display_vector = NULL;
+		effect_template[i].size = 0;
+
+		char* string;
+		// Seta string (caso tenha)
+		switch(i){
+			case CLICK_PERFEITO: 
+				string = "Perfeito!";
 				break;
-			}
+			case CLICK_BOM:
+				string = "Bom";
+				break;
+			case CLICK_RUIM:
+				string = "Ruim";
+				break;
+			case CLICK_EXPIRADO:
+				string = "Expirado";
+				break;
 		}
-		
-		// Se a nota nao acabou, sai do loop
-		if (!flag_note_ended){
+		// Inicia efeito no vetor
+		SDL_Color effect_color = {0xFF, 0xFF, 0xFF, 0xFF};
+		switch(i){
+			// Eventos de texto com 1 de tamanho
+			case CLICK_PERFEITO:
+			case CLICK_BOM:
+			case CLICK_RUIM:
+			case CLICK_EXPIRADO:
+				effect_template[i].size = 1;
+				create_text(renderer, &effect_template[i].img, string, effect_color, fnt);
+				break;
+		}
+	}
+	/*	Inicia buffer circular de efeitos	*/
+
+	Effect effects_array[EFFECTS_ARRAY_SIZE];
+	int effects_array_begin = 0;
+	int effects_array_end = 0;
+
+	for(int i = 0; i < EFFECTS_ARRAY_SIZE; i++){
+		effects_array[i].size = 0;
+	}
+
+	/*	Inicia HUD	*/
+
+	SDL_Color HUD_color = {0xFF, 0xFF, 0xFF, 0xFF};
+
+	char score_buffer[20];
+	snprintf(score_buffer, sizeof(score_buffer), "%10d", score);
+
+	char score_label[50] = "Pontos: ";
+	create_text(renderer, &game_HUD.score, strncat(score_label, score_buffer, sizeof(score_label) - strlen(score_label) - 1), HUD_color, fnt);
+	strcpy(score_label, "Pontos: ");
+
+	if (!game_HUD.score){
+		printf("Erro ao iniciar pontuacao: %s\n", SDL_GetError());
+		output = -1;
+		goto FIM;
+	}
+
+	char multiplier_buffer[10];
+	snprintf(multiplier_buffer, sizeof(multiplier_buffer), "%3d", multiplier);
+
+	char multiplier_label[50] = "Multiplicador: ";
+	create_text(renderer, &game_HUD.multiplier, strncat(multiplier_label, multiplier_buffer, sizeof(multiplier_label) - strlen(multiplier_label) - 1), HUD_color, fnt);
+	strcpy(multiplier_label, "Multiplicador: ");
+
+	if (!game_HUD.multiplier){
+		printf("Erro ao iniciar multiplicador: %s\n", SDL_GetError());
+		output = -1;
+		goto FIM;
+	}
+
+	/*	Eventos custom	*/
+
+	Uint32 custom_events_start = SDL_RegisterEvents(EVENTS_NUMBER);
+
+	/*	Execucao	*/
+
+	while (state) {
+
+		// Checa se acabou a musica
+		if(partiture_next >= partiture_size){
+			state = 0;
+
 			break;
 		}
 
-		// Se a nota acabou, fica no loop e atualiza inicio
-		++note_array_begin;
-                note_array_begin %= NOTE_ARRAY_SIZE;
-	        // Avisa na tela
-        	printf("\033[0;33mCirculo consumido do buffer! (circulos restantes: %d)\033[0m\n",
-		((note_array_end-note_array_begin)>=0)?(note_array_end-note_array_begin):(NOTE_ARRAY_SIZE-note_array_begin+note_array_begin) );
 
-        }
+		// Tenta gerar novas notas
+		if ( (next_note_tick <= tick_counter)
+				&& (((note_array_end + 1)%NOTE_ARRAY_SIZE) != note_array_begin) ){
 
-	// Tenta limpar efeitos expirados do buffer
-	while( (!effects_array[effects_array_begin].display_vector) && (effects_array_begin != effects_array_end)){
-		++effects_array_begin;
-                effects_array_begin %= EFFECTS_ARRAY_SIZE;
+			// Cria circulo
+			note_array[note_array_end] = partiture[partiture_next];
+			++note_array_end;
+			note_array_end %= NOTE_ARRAY_SIZE;
 
-                // Avisa na tela
-                printf("\033[0;33mEfeito consumido do buffer!\033[0m\n"
-        	//, ((note_array_end-note_array_begin)>=0)?(note_array_end-note_array_begin):(NOTE_ARRAY_SIZE-note_array_begin+note_array_begin)
-		);
-	}
+			// Atualiza proximo circulo na partitura
+			++partiture_next;
 
-	// Atualiza HUD
-	if (	score != game_HUD.score_value
-	||	multiplier != game_HUD.multiplier_value){
-
-			// Desaloca texturas
-		SDL_DestroyTexture(game_HUD.score); game_HUD.score= NULL;
-		SDL_DestroyTexture(game_HUD.multiplier); game_HUD.multiplier= NULL;
-
-			// Cria nova pontuacao
-		snprintf(score_buffer, sizeof(score_buffer), "%10d", score);
-		create_text(renderer, &game_HUD.score, strncat(score_label, score_buffer, sizeof(score_label) - strlen(score_label) - 1), HUD_color, fnt);
-		strcpy(score_label, "Pontos: ");
-
-			// Cria novo multiplicador
-		snprintf(multiplier_buffer, sizeof(multiplier_buffer), "%3d", multiplier);
-		create_text(renderer, &game_HUD.multiplier, strncat(multiplier_label, multiplier_buffer, sizeof(multiplier_label) - strlen(multiplier_label) - 1), HUD_color, fnt);
-		strcpy(multiplier_label, "Multiplicador: ");
-			
-			// Salva pontos e multiplicador atuais para comparar futuramente
-		game_HUD.score_value = score;
-		game_HUD.multiplier_value = multiplier;
-	}
-
-		/*      Desenho         */
-	// Fundo
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-
-	// Notas
-	for(int i = note_array_begin; i != note_array_end; i=((i+1)%NOTE_ARRAY_SIZE)){
-
-		switch(note_array[i].type){
-		
-			case CLICK:
-			case MULTI_CLICK:
-				// Efeito de fade in
-				if((note_array[i].display_vector[0].remaining_ticks) > (note_array[i].display_vector[0].base_ticks/2)){
-
-					if( 255 < (note_array[i].display_vector[0].color.a + ( 255/(note_array[i].display_vector[0].base_ticks/2) ) ) ){
-        	                	        note_array[i].display_vector[0].color.a = 255;
-	                	        }
-					else{
-						note_array[i].display_vector[0].color.a += ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-					}
-				}
-
-				// Efeito de fade out
-				else{
-					if(note_array[i].display_vector[0].color.a > ( 255/(note_array[i].display_vector[0].base_ticks/2))){
-						note_array[i].display_vector[0].color.a -= ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-					}
-					else{
-						note_array[i].display_vector[0].color.a = 0;
-					}
-				}
-	
-				// Cria circulo exterior
-				int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-		
-				if ( click_timing <= (note_array[i].display_vector[0].base_ticks/20) ){  // 10% do tempo
-		
-					int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-	
-        	        	        aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-                	        	0xFF, 0xFF, 0xFF, 0xFF);
-	                	}
-				else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-					
-					int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-	                                aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-			                0x00, 0x00, 0xFF, 0xFF);
-                		}
-                        	else{
-					int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-	                        	aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-	        	                0xFF, 0x00, 0x00, 0xFF);
-        	        	}
-	
-				--note_array[i].display_vector[0].remaining_ticks;
+			// Atualiza proximo circulo na partitura e tempo da ultima nota
+			next_note_tick = tick_counter + partiture[partiture_next].display_vector[0].starting_tick;
 
 
-				if(note_array[i].display_vector[0].remaining_ticks >=0){
-					filledCircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, note_array[i].display_vector[0].c.radius,
-					note_array[i].display_vector[0].color.r, note_array[i].display_vector[0].color.g, note_array[i].display_vector[0].color.b, note_array[i].display_vector[0].color.a);
-
-				}
-				else{
-					printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
-	
-					multiplier = 1;
-					int expired_circle_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
-
-					create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
-        	                	if (score > 0){
-                	                	--score;
-	                	        }
-				}
-				break;
-			case DRAG:
-				// Efeito de fade in
-                                if((note_array[i].display_vector[0].remaining_ticks) > (note_array[i].display_vector[0].base_ticks/2)){
-
-                                        if( 255 < (note_array[i].display_vector[0].color.a + ( 255/(note_array[i].display_vector[0].base_ticks/2) ) ) ){
-
-                                                note_array[i].display_vector[0].color.a = note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = 255;
-                                        }
-                                        else{
-                                                note_array[i].display_vector[0].color.a += ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-
-						note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[0].color.a;
-                                        }
-
-                                }
-                                // Efeito de fade out
-                                else{
-                                        if(note_array[i].display_vector[0].color.a > ( 255/(note_array[i].display_vector[0].base_ticks/2))){
-
-                                                note_array[i].display_vector[0].color.a -= ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-
-						note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[0].color.a;
-                                        }
-                                        else{
-                                                note_array[i].display_vector[0].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[2].color.a = 0;
-                                        }
-                                }
-				/*
-                                // Cria circulo exterior
-                                int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-
-                                if ( click_timing <= (note_array[i].display_vector[0].base_ticks/20) ){  // 10% do tempo
-
-                                        int external_circle_radius = note_array[i].display_vector[0].radius + click_timing;
-
-                                        aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-                                        0xFF, 0xFF, 0xFF, 0xFF);
-                                }
-                                else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-
-                                        int external_circle_radius = note_array[i].display_vector[0].radius + click_timing;
-
-                                        aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-                                        0x00, 0x00, 0xFF, 0xFF);
-                                }
-                                else{
-                                        int external_circle_radius = note_array[i].display_vector[0].radius + click_timing;
-
-                                        aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-                                        0xFF, 0x00, 0x00, 0xFF);
-                                }
-				*/
-                                --note_array[i].display_vector[0].remaining_ticks;
-
-				note_array[i].display_vector[1].remaining_ticks = note_array[i].display_vector[2].remaining_ticks = note_array[i].display_vector[0].remaining_ticks;
-
-                                if(note_array[i].display_vector[0].remaining_ticks >=0){
-                                        filledCircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, note_array[i].display_vector[0].c.radius,
-                                        note_array[i].display_vector[0].color.r, note_array[i].display_vector[0].color.g, note_array[i].display_vector[0].color.b, note_array[i].display_vector[0].color.a);
-
-					aalineRGBA(renderer, note_array[i].display_vector[1].x, note_array[i].display_vector[1].y, note_array[i].display_vector[1].s.x2, note_array[i].display_vector[1].s.y2,
-					note_array[i].display_vector[1].color.r, note_array[i].display_vector[1].color.g, note_array[i].display_vector[1].color.b, note_array[i].display_vector[1].color.a);
-
-					filledCircleRGBA(renderer, note_array[i].display_vector[2].x, note_array[i].display_vector[2].y, note_array[i].display_vector[2].c.radius,
-                                        note_array[i].display_vector[2].color.r, note_array[i].display_vector[2].color.g, note_array[i].display_vector[2].color.b, note_array[i].display_vector[2].color.a);
-
-                                }
-                                else{
-                                        printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
-
-                                        multiplier = 1;
-                                        int expired_circle_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
-
-                                        create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
-                                        if (score > 0){
-                                                --score;
-                                        }
-                                }
-                                break;
-
+			printf("\033[0;32mCirculo criado! (espacos possiveis para novos circulo: %d )\033[0m\n",
+					((note_array_end-note_array_begin)>=0)?(NOTE_ARRAY_SIZE-(note_array_end-note_array_begin)):NOTE_ARRAY_SIZE-(NOTE_ARRAY_SIZE-note_array_begin+note_array_end));
 		}
-	}
-
-	// Efeitos
-	for(int i = effects_array_begin; i != effects_array_end; i=((i+1)%EFFECTS_ARRAY_SIZE)){
-		assert(effects_array[i].display_vector);
-
-		// Checa se todas as particulas do efeito foram expiradas
-		bool expired_effect = true;
-		for(int j = 0; j < effects_array[i].size; j++){
-			// Desenha particulas validas para o efeito
-			if (effects_array[i].display_vector[j].remaining_ticks >=0){
-				expired_effect = false;
-				
-				SDL_Rect effect_framing = {effects_array[i].display_vector[j].x, effects_array[i].display_vector[j].y, effects_array[i].w, effects_array[i].h};
 
 
-				double fade_status = ((double) effects_array[i].display_vector[j].remaining_ticks)/( (double)effects_array[i].display_vector[j].base_ticks);
+		// Tenta limpar notas expiradas do buffer
+		while (note_array_begin != note_array_end){
 
-				SDL_SetTextureAlphaMod(effects_array[i].img, ((int) (255 * fade_status)));
-				SDL_RenderCopy(renderer, effects_array[i].img, NULL, &effect_framing);
-				SDL_SetTextureAlphaMod(effects_array[i].img, 0xFF);
-
-				--effects_array[i].display_vector[j].remaining_ticks;
-			}
-		}
-		// destroi efeito expirado
-		if(expired_effect){
-			destroy_effect(effects_array, i);
-			effects_array[i].size = 0;
-		}
-	}
-
-
-	// Linhas
-	SDL_SetRenderDrawColor(renderer, 0xFF,0xFF,0xFF,0xFF);
-
-	SDL_Rect line1 = {PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
-	SDL_Rect line2 = {2*PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
-
-	SDL_RenderFillRect(renderer, &line1);
-	SDL_RenderFillRect(renderer, &line2);
-
-
-	//HUD
-	SDL_Rect score_framing = {(WINDOW_WIDTH-game_HUD.w)-20, 0, game_HUD.w, (game_HUD.h/2)};
-	SDL_Rect multiplier_framing = {(WINDOW_WIDTH-game_HUD.w)-20, (game_HUD.h/2), game_HUD.w, (game_HUD.h/2)};
-
-	SDL_RenderCopy(renderer, game_HUD.score, NULL, &score_framing);
-	SDL_RenderCopy(renderer, game_HUD.multiplier, NULL, &multiplier_framing);
-
-	// Mostra desenho
-	SDL_RenderPresent(renderer);
-
-	//while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
-	SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
-
-			/*	Checa eventos		*/
-	int isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
-        if (isevt) {
-		switch(event.type){
-			case SDL_QUIT:
-	                	state = 0;
-				break;
-	    		case SDL_MOUSEBUTTONDOWN:
-		                // Verifica se acertou o clique no circulo
-				int note_position[2] = {INT_MIN, INT_MIN};
-
-                		int colision_result = check_collision_note(&note_position[0], &note_position[1]);
-				switch(colision_result){
-					case INT_MIN:
-						printf("sei la oque deu\n");
-						break;
-					case CLICK_PERFEITO:
-						printf("Colisao perfeita!\n");
-						score+= (multiplier* 9);
-						multiplier +=2;
-						create_event(&event, custom_events_start, CLICK, colision_result, note_position);
-						break;
-					case CLICK_BOM:
-						printf("Colisao boa!\n");
-                                                score+= (multiplier* 3);
-						multiplier +=1;
-						create_event(&event, custom_events_start, CLICK, colision_result, note_position);
-                                                break;
-					case CLICK_RUIM:
-						printf("Colisao ruim!\n");
-                                                score+= multiplier;
-						create_event(&event, custom_events_start, CLICK, colision_result, note_position);
-                                                break;
-					case CLICK_ERROU:
-                                                printf("Nao houve colisao! (-1 ponto)\n");
-                                                if (score > 0){
-                                                        --score;
-                                                }
-						multiplier = 1;
-						create_event(&event, custom_events_start, CLICK, colision_result, note_position);
-                                                break;
-				}
-				if (multiplier > MAX_MULTIPLIER){
-					multiplier = MAX_MULTIPLIER;
-				}
-				break;
-			case SDL_USEREVENT:
-				if (!event.user.data1){
-                                        printf("Erro ao ler posicao do custom event!\n");
-                                        break;
-                                }
-				if (!event.user.data2){
-					printf("Erro ao ler efeito de custom event!\n");
+			// Checa se primeira nota no vetor acabou
+			bool flag_note_ended = true;
+			for(int i = 0; i < note_array[note_array_begin].size; i++){
+				if (note_array[note_array_begin].display_vector[i].remaining_ticks >= 0){
+					flag_note_ended = false;
 					break;
 				}
-				int delay = -1;
-				int spawn_time_variation = -1;
-				int base_ticks = -1;
+			}
 
-				switch( *(Effect_type*)event.user.data2 ){
-					case CLICK_PERFEITO:
-					case CLICK_BOM:
-                                        case CLICK_RUIM:
-                                        case CLICK_EXPIRADO:
-					case CLICK_ERROU:
-						// Mensagem referente a clique/falta de clique no circulo
-						delay = 5;
-		                                spawn_time_variation = 0;
-		                                base_ticks = 100;
-						break;
+			// Se a nota nao acabou, sai do loop
+			if (!flag_note_ended){
+				break;
+			}
+
+			// Se a nota acabou, fica no loop e atualiza inicio
+			++note_array_begin;
+			note_array_begin %= NOTE_ARRAY_SIZE;
+			// Avisa na tela
+			printf("\033[0;33mCirculo consumido do buffer! (circulos restantes: %d)\033[0m\n",
+					((note_array_end-note_array_begin)>=0)?(note_array_end-note_array_begin):(NOTE_ARRAY_SIZE-note_array_begin+note_array_begin) );
+
+		}
+
+		// Tenta limpar efeitos expirados do buffer
+		while( (!effects_array[effects_array_begin].display_vector) && (effects_array_begin != effects_array_end)){
+			++effects_array_begin;
+			effects_array_begin %= EFFECTS_ARRAY_SIZE;
+
+			// Avisa na tela
+			printf("\033[0;33mEfeito consumido do buffer!\033[0m\n"
+					//, ((note_array_end-note_array_begin)>=0)?(note_array_end-note_array_begin):(NOTE_ARRAY_SIZE-note_array_begin+note_array_begin)
+			      );
+		}
+
+		// Atualiza HUD
+		if (	score != game_HUD.score_value
+				||	multiplier != game_HUD.multiplier_value){
+
+			// Desaloca texturas
+			SDL_DestroyTexture(game_HUD.score); game_HUD.score= NULL;
+			SDL_DestroyTexture(game_HUD.multiplier); game_HUD.multiplier= NULL;
+
+			// Cria nova pontuacao
+			snprintf(score_buffer, sizeof(score_buffer), "%10d", score);
+			create_text(renderer, &game_HUD.score, strncat(score_label, score_buffer, sizeof(score_label) - strlen(score_label) - 1), HUD_color, fnt);
+			strcpy(score_label, "Pontos: ");
+
+			// Cria novo multiplicador
+			snprintf(multiplier_buffer, sizeof(multiplier_buffer), "%3d", multiplier);
+			create_text(renderer, &game_HUD.multiplier, strncat(multiplier_label, multiplier_buffer, sizeof(multiplier_label) - strlen(multiplier_label) - 1), HUD_color, fnt);
+			strcpy(multiplier_label, "Multiplicador: ");
+
+			// Salva pontos e multiplicador atuais para comparar futuramente
+			game_HUD.score_value = score;
+			game_HUD.multiplier_value = multiplier;
+		}
+
+		/*      Desenho         */
+		// Fundo
+		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+		SDL_RenderClear(renderer);
+
+		// Notas
+		for(int i = note_array_begin; i != note_array_end; i=((i+1)%NOTE_ARRAY_SIZE)){
+
+			switch(note_array[i].type){
+
+				case CLICK:
+				case MULTI_CLICK:
+					// Efeito de fade in
+					if((note_array[i].display_vector[0].remaining_ticks) > (note_array[i].display_vector[0].base_ticks/2)){
+
+						if( 255 < (note_array[i].display_vector[0].color.a + ( 255/(note_array[i].display_vector[0].base_ticks/2) ) ) ){
+							note_array[i].display_vector[0].color.a = 255;
+						}
+						else{
+							note_array[i].display_vector[0].color.a += ( 255/(note_array[i].display_vector[0].base_ticks/2) );
+						}
+					}
+
+					// Efeito de fade out
+					else{
+						if(note_array[i].display_vector[0].color.a > ( 255/(note_array[i].display_vector[0].base_ticks/2))){
+							note_array[i].display_vector[0].color.a -= ( 255/(note_array[i].display_vector[0].base_ticks/2) );
+						}
+						else{
+							note_array[i].display_vector[0].color.a = 0;
+						}
+					}
+
+					// Cria circulo exterior
+					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
+
+					if ( click_timing <= (note_array[i].display_vector[0].base_ticks/20) ){  // 10% do tempo
+
+						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
+
+						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
+								0xFF, 0xFF, 0xFF, 0xFF);
+					}
+					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
+
+						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
+
+						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
+								0x00, 0x00, 0xFF, 0xFF);
+					}
+					else{
+						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
+
+						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
+								0xFF, 0x00, 0x00, 0xFF);
+					}
+
+					--note_array[i].display_vector[0].remaining_ticks;
+
+
+					if(note_array[i].display_vector[0].remaining_ticks >=0){
+						filledCircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, note_array[i].display_vector[0].c.radius,
+								note_array[i].display_vector[0].color.r, note_array[i].display_vector[0].color.g, note_array[i].display_vector[0].color.b, note_array[i].display_vector[0].color.a);
+
+					}
+					else{
+						printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
+
+						multiplier = 1;
+						int expired_circle_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
+
+						create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
+						if (score > 0){
+							--score;
+						}
+					}
+					break;
+				case DRAG:
+					// Efeito de fade in
+					if((note_array[i].display_vector[0].remaining_ticks) > (note_array[i].display_vector[0].base_ticks/2)){
+
+						if( 255 < (note_array[i].display_vector[0].color.a + ( 255/(note_array[i].display_vector[0].base_ticks/2) ) ) ){
+
+							note_array[i].display_vector[0].color.a = note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = 255;
+						}
+						else{
+							note_array[i].display_vector[0].color.a += ( 255/(note_array[i].display_vector[0].base_ticks/2) );
+
+							note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[0].color.a;
+						}
+
+					}
+					// Efeito de fade out
+					else{
+						if(note_array[i].display_vector[0].color.a > ( 255/(note_array[i].display_vector[0].base_ticks/2))){
+
+							note_array[i].display_vector[0].color.a -= ( 255/(note_array[i].display_vector[0].base_ticks/2) );
+
+							note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[0].color.a;
+						}
+						else{
+							note_array[i].display_vector[0].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[2].color.a = 0;
+						}
+					}
+					/*
+					// Cria circulo exterior
+					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
+
+					if ( click_timing <= (note_array[i].display_vector[0].base_ticks/20) ){  // 10% do tempo
+
+					int external_circle_radius = note_array[i].display_vector[0].radius + click_timing;
+
+					aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
+					0xFF, 0xFF, 0xFF, 0xFF);
+					}
+					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
+
+					int external_circle_radius = note_array[i].display_vector[0].radius + click_timing;
+
+					aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
+					0x00, 0x00, 0xFF, 0xFF);
+					}
+					else{
+					int external_circle_radius = note_array[i].display_vector[0].radius + click_timing;
+
+					aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
+					0xFF, 0x00, 0x00, 0xFF);
+					}
+					*/
+					--note_array[i].display_vector[0].remaining_ticks;
+
+					note_array[i].display_vector[1].remaining_ticks = note_array[i].display_vector[2].remaining_ticks = note_array[i].display_vector[0].remaining_ticks;
+
+					if(note_array[i].display_vector[0].remaining_ticks >=0){
+						filledCircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, note_array[i].display_vector[0].c.radius,
+								note_array[i].display_vector[0].color.r, note_array[i].display_vector[0].color.g, note_array[i].display_vector[0].color.b, note_array[i].display_vector[0].color.a);
+
+						aalineRGBA(renderer, note_array[i].display_vector[1].x, note_array[i].display_vector[1].y, note_array[i].display_vector[1].s.x2, note_array[i].display_vector[1].s.y2,
+								note_array[i].display_vector[1].color.r, note_array[i].display_vector[1].color.g, note_array[i].display_vector[1].color.b, note_array[i].display_vector[1].color.a);
+
+						filledCircleRGBA(renderer, note_array[i].display_vector[2].x, note_array[i].display_vector[2].y, note_array[i].display_vector[2].c.radius,
+								note_array[i].display_vector[2].color.r, note_array[i].display_vector[2].color.g, note_array[i].display_vector[2].color.b, note_array[i].display_vector[2].color.a);
+
+					}
+					else{
+						printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
+
+						multiplier = 1;
+						int expired_circle_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
+
+						create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
+						if (score > 0){
+							--score;
+						}
+					}
+					break;
+
+			}
+		}
+
+		// Efeitos
+		for(int i = effects_array_begin; i != effects_array_end; i=((i+1)%EFFECTS_ARRAY_SIZE)){
+			assert(effects_array[i].display_vector);
+
+			// Checa se todas as particulas do efeito foram expiradas
+			bool expired_effect = true;
+			for(int j = 0; j < effects_array[i].size; j++){
+				// Desenha particulas validas para o efeito
+				if (effects_array[i].display_vector[j].remaining_ticks >=0){
+					expired_effect = false;
+
+					SDL_Rect effect_framing = {effects_array[i].display_vector[j].x, effects_array[i].display_vector[j].y, effects_array[i].w, effects_array[i].h};
+
+
+					double fade_status = ((double) effects_array[i].display_vector[j].remaining_ticks)/( (double)effects_array[i].display_vector[j].base_ticks);
+
+					SDL_SetTextureAlphaMod(effects_array[i].img, ((int) (255 * fade_status)));
+					SDL_RenderCopy(renderer, effects_array[i].img, NULL, &effect_framing);
+					SDL_SetTextureAlphaMod(effects_array[i].img, 0xFF);
+
+					--effects_array[i].display_vector[j].remaining_ticks;
 				}
+			}
+			// destroi efeito expirado
+			if(expired_effect){
+				destroy_effect(effects_array, i);
+				effects_array[i].size = 0;
+			}
+		}
 
-				create_effect(effects_array, &effects_array_begin, &effects_array_end, effect_template, *(Effect_type*)event.user.data2,
-                        ((int*)event.user.data1)[0], ((int*)event.user.data1)[1], &tick_counter, delay, spawn_time_variation, base_ticks);
 
-				free(event.user.data1); event.user.data1 = NULL;
-				free(event.user.data2); event.user.data2 = NULL;
-	
-        	}
+		// Linhas
+		SDL_SetRenderDrawColor(renderer, 0xFF,0xFF,0xFF,0xFF);
+
+		SDL_Rect line1 = {PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
+		SDL_Rect line2 = {2*PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
+
+		SDL_RenderFillRect(renderer, &line1);
+		SDL_RenderFillRect(renderer, &line2);
+
+
+		//HUD
+		SDL_Rect score_framing = {(WINDOW_WIDTH-game_HUD.w)-20, 0, game_HUD.w, (game_HUD.h/2)};
+		SDL_Rect multiplier_framing = {(WINDOW_WIDTH-game_HUD.w)-20, (game_HUD.h/2), game_HUD.w, (game_HUD.h/2)};
+
+		SDL_RenderCopy(renderer, game_HUD.score, NULL, &score_framing);
+		SDL_RenderCopy(renderer, game_HUD.multiplier, NULL, &multiplier_framing);
+
+		// Mostra desenho
+		SDL_RenderPresent(renderer);
+
+		//while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
+		SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
+
+		/*	Checa eventos		*/
+		switch(state){
+			case 1:
+				int isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
+				if (isevt) {
+					switch(event.type){
+						case SDL_QUIT:
+							state = 0;
+							break;
+						case SDL_MOUSEBUTTONDOWN:
+							// Verifica se acertou o clique no circulo
+							int note_position[2] = {INT_MIN, INT_MIN};
+
+							int colision_result = check_collision_note(&note_position[0], &note_position[1]);
+							switch(colision_result){
+								case INT_MIN:
+									printf("sei la oque deu\n");
+									break;
+								case CLICK_PERFEITO:
+									printf("Colisao perfeita!\n");
+									score+= (multiplier* 9);
+									multiplier +=2;
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									break;
+								case CLICK_BOM:
+									printf("Colisao boa!\n");
+									score+= (multiplier* 3);
+									multiplier +=1;
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									break;
+								case CLICK_RUIM:
+									printf("Colisao ruim!\n");
+									score+= multiplier;
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									break;
+								case CLICK_ERROU:
+									printf("Nao houve colisao! (-1 ponto)\n");
+									if (score > 0){
+										--score;
+									}
+									multiplier = 1;
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									break;
+							}
+							if (multiplier > MAX_MULTIPLIER){
+								multiplier = MAX_MULTIPLIER;
+							}
+							break;
+						case SDL_USEREVENT:
+							if (!event.user.data1){
+								printf("Erro ao ler posicao do custom event!\n");
+								break;
+							}
+							if (!event.user.data2){
+								printf("Erro ao ler efeito de custom event!\n");
+								break;
+							}
+
+
+
+							switch( (event.user.code-EVENTS_NUMBER) ){
+								case NOTE_CLICK:
+									int delay = -1;
+									int spawn_time_variation = -1;
+									int base_ticks = -1;
+
+									switch( *(Effect_type*)event.user.data2 ){
+										case CLICK_PERFEITO:
+										case CLICK_BOM:
+										case CLICK_RUIM:
+										case CLICK_EXPIRADO:
+										case CLICK_ERROU:
+											// Mensagem referente a clique/falta de clique no circulo
+											delay = 5;
+											spawn_time_variation = 0;
+											base_ticks = 100;
+											break;
+									}
+									create_effect(effects_array, &effects_array_begin, &effects_array_end, effect_template, *(Effect_type*)event.user.data2,
+											((int*)event.user.data1)[0], ((int*)event.user.data1)[1], &tick_counter, delay, spawn_time_variation, base_ticks);
+									break;
+								case NOTE_DRAG:
+									state = 2;
+									break;
+
+
+							}
+
+							free(event.user.data1); event.user.data1 = NULL;
+							free(event.user.data2); event.user.data2 = NULL;
+					}
+				}
+				else{
+					tickTime = 17;
+					++tick_counter;       // Incrementa ticks
+					//printf("incrementa tick_counter! (tick_counter: %d. next_note_tick: %d)\n", tick_counter, next_note_tick);
+				}
+				break;
+
+			case 2:
+				/*
+				 *
+				 *
+				 *	- Implementar uma forma de lembrar qual nota esta arrastando
+				 *
+				 *	- Implementar uma forma de 
+				 *	
+				 *
+				 *
+				 *
+				 */
+
+
+		}
 	}
-	else{
-		tickTime = 17;
-		++tick_counter;       // Incrementa ticks
-		//printf("incrementa tick_counter! (tick_counter: %d. next_note_tick: %d)\n", tick_counter, next_note_tick);
-	}
-
-    }
-    printf("\033[36mFim de Jogo! Sua pontuacao e: %d\033[0m\n", score);
-    printf("\033[36mTotal de circulos gerados: %d\033[0m\n", partiture_next);
+	printf("\033[36mFim de Jogo! Sua pontuacao e: %d\033[0m\n", score);
+	printf("\033[36mTotal de circulos gerados: %d\033[0m\n", partiture_next);
 
 
-    printf("\n\n\033[36minicio do buffer: %d\nfim do buffer: %d\033[0m\n", note_array_begin, note_array_end);
+	printf("\n\n\033[36minicio do buffer: %d\nfim do buffer: %d\033[0m\n", note_array_begin, note_array_end);
 
-    printf("\n\n\033[36mtempo proximo circulo: %d\ntempo final: %d\033[0m\n", next_note_tick, tick_counter);
+	printf("\n\n\033[36mtempo proximo circulo: %d\ntempo final: %d\033[0m\n", next_note_tick, tick_counter);
 
 
 FIM:
-    	/*	Desaloca tudo	*/
-    // Desaloca partitura
-    for(int i = 0; i < partiture_size; i++){
-        if (partiture[i].display_vector){
-		free(partiture[i].display_vector);
-		partiture[i].display_vector = NULL;
+	/*	Desaloca tudo	*/
+	// Desaloca partitura
+	for(int i = 0; i < partiture_size; i++){
+		if (partiture[i].display_vector){
+			free(partiture[i].display_vector);
+			partiture[i].display_vector = NULL;
+		}
 	}
-    }
 
-    // Desaloca todas as notas
-    for(int i = note_array_begin; i != note_array_end; i=((i+1)% NOTE_ARRAY_SIZE )){
-        if (note_array[i].display_vector){
-                free(note_array[i].display_vector);
-                note_array[i].display_vector = NULL;
-        }
-    }
+	// Desaloca todas as notas
+	for(int i = note_array_begin; i != note_array_end; i=((i+1)% NOTE_ARRAY_SIZE )){
+		if (note_array[i].display_vector){
+			free(note_array[i].display_vector);
+			note_array[i].display_vector = NULL;
+		}
+	}
 
-    // Desaloca template de notas
-    for(int i = 0; i < NOTE_NUMBER; i++){
-        if (note_template[i].display_vector){
-                free(note_template[i].display_vector);
-                note_template[i].display_vector = NULL;
-        }
-	if (note_template[i].img){
-		for(int j = 0; j < note_template[i].img_number; j++){
-			SDL_DestroyTexture(note_template[i].img[j]);
+	// Desaloca template de notas
+	for(int i = 0; i < NOTE_NUMBER; i++){
+		if (note_template[i].display_vector){
+			free(note_template[i].display_vector);
+			note_template[i].display_vector = NULL;
+		}
+		if (note_template[i].img){
+			for(int j = 0; j < note_template[i].img_number; j++){
+				SDL_DestroyTexture(note_template[i].img[j]);
+				note_template[i].img = NULL;
+			}
+
+			free(note_template[i].img);
 			note_template[i].img = NULL;
 		}
-
-		free(note_template[i].img);
-		note_template[i].img = NULL;
 	}
-    }
 
-    // Desaloca todos os efeitos
-    for(int i = effects_array_begin; i != effects_array_end; i=((i+1)% EFFECTS_ARRAY_SIZE )){
-	if(effects_array[i].display_vector){
-		destroy_effect(effects_array, i);
-    	}
-    }
+	// Desaloca todos os efeitos
+	for(int i = effects_array_begin; i != effects_array_end; i=((i+1)% EFFECTS_ARRAY_SIZE )){
+		if(effects_array[i].display_vector){
+			destroy_effect(effects_array, i);
+		}
+	}
 
-    // Desaloca template dos efeitos
-    for(int i = 0; i < EFFECT_NUMBER; i++){
-            SDL_DestroyTexture(effect_template[i].img);
-    }
+	// Desaloca template dos efeitos
+	for(int i = 0; i < EFFECT_NUMBER; i++){
+		SDL_DestroyTexture(effect_template[i].img);
+	}
 
-    if (game_HUD.score){
-	    SDL_DestroyTexture(game_HUD.score);
-    }
+	if (game_HUD.score){
+		SDL_DestroyTexture(game_HUD.score);
+	}
 
-    if (game_HUD.multiplier){
-	    SDL_DestroyTexture(game_HUD.multiplier);
-    }
+	if (game_HUD.multiplier){
+		SDL_DestroyTexture(game_HUD.multiplier);
+	}
 
-    // Desaloca fonte
-    if (fnt) {
-	    TTF_CloseFont(fnt);
-    }
+	// Desaloca fonte
+	if (fnt) {
+		TTF_CloseFont(fnt);
+	}
 
-    if (ttf_init_code>=0) {
-        TTF_Quit();
-    }
+	if (ttf_init_code>=0) {
+		TTF_Quit();
+	}
 
 	/*	Finaliza SDL	*/
-    if(renderer){
-	    SDL_DestroyRenderer(renderer);
-    }
-    if(window){
-	    SDL_DestroyWindow(window);
-    }
+	if(renderer){
+		SDL_DestroyRenderer(renderer);
+	}
+	if(window){
+		SDL_DestroyWindow(window);
+	}
 
-     SDL_Quit();
+	SDL_Quit();
 
-    	/*	Retorna funcao */
-    // 0-> sucesso
-    // <0 -> erro
-    return output;
+	/*	Retorna funcao */
+	// 0-> sucesso
+	// <0 -> erro
+	return output;
 }
 
 
@@ -912,37 +941,50 @@ FIM:
 // parece ter consertado problemas de travamento
 int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms){
 
-        //Pega tempo anterior
-        Uint32 antes = SDL_GetTicks();
+	//Pega tempo anterior
+	Uint32 antes = SDL_GetTicks();
 
-        int isevt =  SDL_WaitEventTimeout( evt , *ms );
+	int isevt =  SDL_WaitEventTimeout( evt , *ms );
 
 	Uint32 decorrido = SDL_GetTicks() - antes;
 
-        //Lida com atualizacao do valor de espera
-        *ms = (*ms > decorrido) ? (*ms - decorrido) : 0;
+	//Lida com atualizacao do valor de espera
+	*ms = (*ms > decorrido) ? (*ms - decorrido) : 0;
 
-        return isevt;
+	return isevt;
 }
 
 // Gera circulo aleatorio
 void generate_random_note(Note* note_template, Note* note) {
 
-	int new_note_type = rand() % NOTE_NUMBER;
-
-	(*note) = note_template[new_note_type];
-
+	/*
+	 *
+	 *	No momento, testando sem imagens
+	 *
+	 */
 	note->img_number = 0;
 
+
+	// Seta valores referentes a nota como um todo
+	int new_note_type = rand() % NOTE_NUMBER;
+	(*note) = note_template[new_note_type];
+	int note_partition = rand() % total_partitions;
+	int starting_tick = 15 + (rand() % 46);     // Circulo inicia entre [0,25s;1s]
+	int base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
+	int remaining_ticks = base_ticks;
+
+	SDL_Color color = { rand() % 0xFF, rand() % 0XFF , rand() % 0XFF, 0xFF};
+
+	// Seta valores de cada parte da nota
 	for(int i = 0; i < note->size; i++){
 
 		// Escolhe particao
-		note->display_vector[i].partition = rand() % total_partitions;	// Define particao
+		note->display_vector[i].partition = note_partition;
 
 		// Escolhe tempo
-		note->display_vector[i].starting_tick = 15 + (rand() % 46);	// Circulo inicia entre [0,25s;1s]
-		note->display_vector[i].base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
-		note->display_vector[i].remaining_ticks = note->display_vector[i].base_ticks;
+		note->display_vector[i].starting_tick = starting_tick;
+		note->display_vector[i].base_ticks = base_ticks; 
+		note->display_vector[i].remaining_ticks = remaining_ticks;
 
 
 		// Escolhe coordenadas
@@ -958,13 +1000,13 @@ void generate_random_note(Note* note_template, Note* note) {
 
 	}
 	switch(note->type){
-                case CLICK:
-                        note->display_vector[0].c.radius = rand() % 51 + 20;
-                        break;
-                case MULTI_CLICK:
+		case CLICK:
+			note->display_vector[0].c.radius = rand() % 51 + 20;
+			break;
+		case MULTI_CLICK:
 			note->display_vector[0].c.radius = rand() % 71 + 20;
-                        break;
-                case DRAG:
+			break;
+		case DRAG:
 			// Cria circulo inicial
 			note->display_vector[0].c.radius = rand() % 51 + 20;
 
@@ -972,15 +1014,15 @@ void generate_random_note(Note* note_template, Note* note) {
 			note->display_vector[2].c.radius = rand() % 51 + 20;
 
 			// Cria linha reta entre os dois circulos
-                        note->display_vector[1].x = note->display_vector[0].x;
+			note->display_vector[1].x = note->display_vector[0].x;
 			note->display_vector[1].y = note->display_vector[0].y;
 			note->display_vector[1].s.x2 = note->display_vector[2].x;
-                        note->display_vector[1].s.y2 = note->display_vector[2].y;
+			note->display_vector[1].s.y2 = note->display_vector[2].y;
 
 			// Coloca alpha fixo para reta suporte
 			note->display_vector[1].color.a = 0x88;
-                        break;
-        }
+			break;
+	}
 
 }
 
@@ -993,146 +1035,146 @@ void generate_random_note(Note* note_template, Note* note) {
 // INT_MIN -> a
 int check_collision_note(int* x, int* y) {
 
-    SDL_GetMouseState(x, y);
+	SDL_GetMouseState(x, y);
 
-    if(	(*x) == INT_MIN
-     ||	(*y) == INT_MIN	){
-	printf("Erro! Falha ao obter informacoes do mouse!\n");
-	return INT_MIN;
-    }
-
-    int output = CLICK_ERROU;
-
-
-    for(int i = ((note_array_end-1 + NOTE_ARRAY_SIZE)%NOTE_ARRAY_SIZE);
-		    			i != ((note_array_begin-1 + NOTE_ARRAY_SIZE )%NOTE_ARRAY_SIZE);
-										i=((i-1+ NOTE_ARRAY_SIZE)%NOTE_ARRAY_SIZE)){
-
-	int dx, dy;
-	dx = dy = INT_MIN;
-	switch(note_array[i].type){
-		case CLICK:
-			/*
-			 *
-			 *	So funciona com circulos por enquanto
-			 *
-			 *
-			 */
-			dx = (*x) - note_array[i].display_vector[0].x;
-			dy = (*y) - note_array[i].display_vector[0].y;
-
-			if( 	( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
-				&& (note_array[i].display_vector[0].remaining_ticks >= 0) ){
-	
-				int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-
-				note_array[i].display_vector[0].remaining_ticks = -1;	// Remove circulo
-
-				if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){	// 10% do tempo
-					output = CLICK_PERFEITO;
-				}
-
-				else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-                	                output = CLICK_BOM;
-	                        }
-
-				else{
-					output = CLICK_RUIM;
-				}
-
-				(*x) = note_array[i].display_vector[0].x;
-				(*y) = note_array[i].display_vector[0].y;
-
-				goto RETORNA_CLIQUE;
-			}
-			break;
-		case MULTI_CLICK:
-			/*
-                         *
-                         *      So funciona com circulos por enquanto
-                         *
-                         *
-                         */
-			dx = (*x) - note_array[i].display_vector[0].x;
-                        dy = (*y) - note_array[i].display_vector[0].y;
-
-                        if(     ( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
-                                && (note_array[i].display_vector[0].remaining_ticks >= 0) ){
-
-                                int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-
-                                note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
-
-                                if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){    // 10% do tempo
-                                        output = CLICK_PERFEITO;
-                                }
-
-                                else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-                                        output = CLICK_BOM;
-                                }
-
-                                else{
-                                        output = CLICK_RUIM;
-                                }
-
-                                (*x) = note_array[i].display_vector[0].x;
-                                (*y) = note_array[i].display_vector[0].y;
-
-                                goto RETORNA_CLIQUE;
-                        }
-                        break;
-		case DRAG:
-			/*
-                         *
-                         *      So funciona com circulos por enquanto
-			 *
-			 *
-			 *      Arrastar nao pontua nesse caso, funcao principal
-			 *      somente troca de estado para 
-                         *
-                         *
-                         */
-                        dx = (*x) - note_array[i].display_vector[0].x;
-                        dy = (*y) - note_array[i].display_vector[0].y;
-
-                        if(     ( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
-                                && (note_array[i].display_vector[0].remaining_ticks >= 0) ){
-
-                                int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-
-                                note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
-
-                                if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){    // 10% do tempo
-                                        output = CLICK_PERFEITO;
-                                }
-
-                                else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-                                        output = CLICK_BOM;
-                                }
-
-                                else{
-                                        output = CLICK_RUIM;
-                                }
-
-                                (*x) = note_array[i].display_vector[0].x;
-                                (*y) = note_array[i].display_vector[0].y;
-
-                                goto RETORNA_CLIQUE;
-                        }
-                        break;
+	if(	(*x) == INT_MIN
+			||	(*y) == INT_MIN	){
+		printf("Erro! Falha ao obter informacoes do mouse!\n");
+		return INT_MIN;
 	}
-    }
+
+	int output = CLICK_ERROU;
+
+
+	for(int i = ((note_array_end-1 + NOTE_ARRAY_SIZE)%NOTE_ARRAY_SIZE);
+			i != ((note_array_begin-1 + NOTE_ARRAY_SIZE )%NOTE_ARRAY_SIZE);
+			i=((i-1+ NOTE_ARRAY_SIZE)%NOTE_ARRAY_SIZE)){
+
+		int dx, dy;
+		dx = dy = INT_MIN;
+		switch(note_array[i].type){
+			case CLICK:
+				/*
+				 *
+				 *	So funciona com circulos por enquanto
+				 *
+				 *
+				 */
+				dx = (*x) - note_array[i].display_vector[0].x;
+				dy = (*y) - note_array[i].display_vector[0].y;
+
+				if( 	( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
+						&& (note_array[i].display_vector[0].remaining_ticks >= 0) ){
+
+					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
+
+					note_array[i].display_vector[0].remaining_ticks = -1;	// Remove circulo
+
+					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){	// 10% do tempo
+						output = CLICK_PERFEITO;
+					}
+
+					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
+						output = CLICK_BOM;
+					}
+
+					else{
+						output = CLICK_RUIM;
+					}
+
+					(*x) = note_array[i].display_vector[0].x;
+					(*y) = note_array[i].display_vector[0].y;
+
+					goto RETORNA_CLIQUE;
+				}
+				break;
+			case MULTI_CLICK:
+				/*
+				 *
+				 *      So funciona com circulos por enquanto
+				 *
+				 *
+				 */
+				dx = (*x) - note_array[i].display_vector[0].x;
+				dy = (*y) - note_array[i].display_vector[0].y;
+
+				if(     ( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
+						&& (note_array[i].display_vector[0].remaining_ticks >= 0) ){
+
+					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
+
+					note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
+
+					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){    // 10% do tempo
+						output = CLICK_PERFEITO;
+					}
+
+					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
+						output = CLICK_BOM;
+					}
+
+					else{
+						output = CLICK_RUIM;
+					}
+
+					(*x) = note_array[i].display_vector[0].x;
+					(*y) = note_array[i].display_vector[0].y;
+
+					goto RETORNA_CLIQUE;
+				}
+				break;
+			case DRAG:
+				/*
+				 *
+				 *      So funciona com circulos por enquanto
+				 *
+				 *
+				 *      Arrastar nao pontua nesse caso, funcao principal
+				 *      somente troca de estado para 
+				 *
+				 *
+				 */
+				dx = (*x) - note_array[i].display_vector[0].x;
+				dy = (*y) - note_array[i].display_vector[0].y;
+
+				if(     ( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
+						&& (note_array[i].display_vector[0].remaining_ticks >= 0) ){
+
+					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
+
+					note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
+
+					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){    // 10% do tempo
+						output = CLICK_PERFEITO;
+					}
+
+					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
+						output = CLICK_BOM;
+					}
+
+					else{
+						output = CLICK_RUIM;
+					}
+
+					(*x) = note_array[i].display_vector[0].x;
+					(*y) = note_array[i].display_vector[0].y;
+
+					goto RETORNA_CLIQUE;
+				}
+				break;
+		}
+	}
 
 RETORNA_CLIQUE:
-    return output;
+	return output;
 }
 
 /*
 // Enche array com circulos validos aleatorios
 void fill_note_array(Note* array, int array_size){
-	for (int i = 0; i < array_size; i++){
-		generate_random_note(&array[i]);
-        }
+for (int i = 0; i < array_size; i++){
+generate_random_note(&array[i]);
+}
 }
 */
 
@@ -1150,23 +1192,23 @@ void create_text(SDL_Renderer* ren, SDL_Texture** text, char* text_content, SDL_
 }
 
 /*
-void create_image(SDL_Renderer* ren, SDL_Texture** text, char* text_content, SDL_Color color, TTF_Font* fnt){
+   void create_image(SDL_Renderer* ren, SDL_Texture** text, char* text_content, SDL_Color color, TTF_Font* fnt){
 
-        assert(fnt);
+   assert(fnt);
 
-        SDL_Surface* sfc = TTF_RenderText_Blended(fnt, text_content, color);
-        assert(sfc);
+   SDL_Surface* sfc = TTF_RenderText_Blended(fnt, text_content, color);
+   assert(sfc);
 
-        (*text) = SDL_CreateTextureFromSurface(ren, sfc);
-        assert(text);
+   (*text) = SDL_CreateTextureFromSurface(ren, sfc);
+   assert(text);
 
-        SDL_FreeSurface(sfc);
+   SDL_FreeSurface(sfc);
 
-}
-*/
+   }
+   */
 
 void create_effect(Effect* effect_array, int* effect_array_begin, int* effect_array_end, Effect* effect_templates, int effect_template,
-			int x, int y, int* now, int delay, int spawn_time_variation, int base_ticks){
+		int x, int y, int* now, int delay, int spawn_time_variation, int base_ticks){
 
 	if( (( (*effect_array_end) +1)% EFFECTS_ARRAY_SIZE) != (*effect_array_begin) ){
 		effect_array[*effect_array_end] = effect_templates[effect_template];
@@ -1180,7 +1222,7 @@ void create_effect(Effect* effect_array, int* effect_array_begin, int* effect_ar
 			effect_array[*effect_array_end].display_vector[i].y = y - (effect_array[*effect_array_end].h/2);
 			effect_array[*effect_array_end].display_vector[i].starting_tick = next_spawn;
 			effect_array[*effect_array_end].display_vector[i].remaining_ticks = base_ticks;
-        		effect_array[*effect_array_end].display_vector[i].base_ticks = base_ticks;
+			effect_array[*effect_array_end].display_vector[i].base_ticks = base_ticks;
 
 			next_spawn += spawn_time_variation;
 		}
@@ -1209,7 +1251,7 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 
 	int result = -1;
 	switch(code){
-		case NOTE: // Evento que cria efeito ao clicar
+		case NOTE_CLICK: // Evento que cria efeito ao clicar
 
 			// Salva posicao do mouse em data1
 			evt->user.data1 = (int*) malloc(2* sizeof(int));
@@ -1218,7 +1260,7 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 
 			// Salva tag do efeito a ser realizado apos evento em data2
 			evt->user.data2 = (Effect_type*) malloc(sizeof(Effect_type));
-		        (*(Effect_type*)evt->user.data2) = event_effect;
+			(*(Effect_type*)evt->user.data2) = event_effect;
 
 			// Tenta jogar evento na fila
 			result = SDL_PushEvent(evt);
@@ -1230,13 +1272,13 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 	// Se falhar, diz que falhou e desaloca memoria (seta para NULL para evitar dangling pointer)
 	if (result < 0){
 		fprintf(stderr, "SDL_PushEvent falhou: %s\n", SDL_GetError());
-	
+
 		if(evt->user.data1){
 			free(evt->user.data1); evt->user.data1 = NULL;
 		}
 		if(evt->user.data2){
-                        free(evt->user.data2); evt->user.data2 = NULL;
-                }
+			free(evt->user.data2); evt->user.data2 = NULL;
+		}
 
 	}
 
@@ -1249,14 +1291,14 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 void initiate_note(Note* note){
 	// Coloca tamanho do display da nota
 	switch(note->type){
-                case CLICK:
-                case MULTI_CLICK:
+		case CLICK:
+		case MULTI_CLICK:
 			note->size = 1;
-                        break;
-                case DRAG:
+			break;
+		case DRAG:
 			note->size = 3;
-                        break;
-        }
+			break;
+	}
 
 	// Aloca vetor de display
 	note->display_vector = (Note_display*) malloc( (note->size)* sizeof(Note_display));
@@ -1264,36 +1306,36 @@ void initiate_note(Note* note){
 	// Aloca imagens a serem usadas
 	switch(note->type){
 		case CLICK:
-                case MULTI_CLICK:
-                case DRAG:
+		case MULTI_CLICK:
+		case DRAG:
 			for(int i = 0; i < note->size; i++){
 				note->display_vector[i].img = NULL;
 			}
-                        break;
+			break;
 	}
 
 	// Anula vetor de display
 	for(int i = 0; i < note->size; i++){
 		note->display_vector[i].x = note->display_vector[i].y =
-                                note->display_vector[i].partition = note->display_vector[i].remaining_ticks = note->display_vector[i].base_ticks = note->display_vector[i].starting_tick = -1;
+			note->display_vector[i].partition = note->display_vector[i].remaining_ticks = note->display_vector[i].base_ticks = note->display_vector[i].starting_tick = -1;
 
-        	note->display_vector[i].color.r = note->display_vector[i].color.g = note->display_vector[i].color.b = note->display_vector[i].color.a = 0x00;
+		note->display_vector[i].color.r = note->display_vector[i].color.g = note->display_vector[i].color.b = note->display_vector[i].color.a = 0x00;
 
 		note->display_vector[i].type = NOTE_DISPLAY_NUMBER; // nota nula = nota maxima
 	}
 
 	// Insere os tipos de display presentes
-        switch(note->type){
-                case CLICK:
+	switch(note->type){
+		case CLICK:
 			note->display_vector[0].type = CIRCLE;
 			break;
-                case MULTI_CLICK:
+		case MULTI_CLICK:
 			note->display_vector[0].type = CIRCLE;
 			break;
-                case DRAG:
+		case DRAG:
 			note->display_vector[0].type = CIRCLE;	// Circulo inicial
 			note->display_vector[1].type = STRAIGHT_LINE;	// Percurso
 			note->display_vector[2].type = CIRCLE;	// Circulo final
-                        break;
-        }
+			break;
+	}
 }
