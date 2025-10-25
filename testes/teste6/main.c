@@ -204,7 +204,7 @@ void generate_random_note(Note* note_template, Note* note);
 // Checa se o mouse acertou o circulo
 //
 // Se acertou, retorna x e y do centro do circulo acertado
-int check_collision_note(int* x, int* y);
+int check_collision_note(int* x, int* y, int* pos);
 
 // Enche array com circulos vazios
 void initiate_note_array(Note* array, int array_size);
@@ -285,7 +285,7 @@ int main(int argc, char* argv[]) {
 		goto FIM;
 	}
 	// Cria a janela
-	window = SDL_CreateWindow("Prototipo 5",
+	window = SDL_CreateWindow("Prototipo 6",
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 			WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
 	if (!window) {
@@ -364,6 +364,9 @@ int main(int argc, char* argv[]) {
 			case CLICK_EXPIRADO:
 				string = "Expirado";
 				break;
+			case CLICK_ERROU:
+                                string = "Errou!";
+                                break;
 		}
 		// Inicia efeito no vetor
 		SDL_Color effect_color = {0xFF, 0xFF, 0xFF, 0xFF};
@@ -373,6 +376,7 @@ int main(int argc, char* argv[]) {
 			case CLICK_BOM:
 			case CLICK_RUIM:
 			case CLICK_EXPIRADO:
+			case CLICK_ERROU:
 				effect_template[i].size = 1;
 				create_text(renderer, &effect_template[i].img, string, effect_color, fnt);
 				break;
@@ -424,6 +428,8 @@ int main(int argc, char* argv[]) {
 
 	/*	Execucao	*/
 
+	int last_note_position[3] = {INT_MIN, INT_MIN, INT_MIN};
+
 	while (state) {
 
 		// Checa se acabou a musica
@@ -440,6 +446,16 @@ int main(int argc, char* argv[]) {
 
 			// Cria circulo
 			note_array[note_array_end] = partiture[partiture_next];
+			// Aloca memoria
+			note_array[note_array_end].display_vector = NULL;
+			note_array[note_array_end].display_vector = (Note_display*) malloc(note_array[note_array_end].size * sizeof(Note_display));
+
+			// Copia malloc
+			for(int i = 0; i < note_array[note_array_end].size; i++){
+				note_array[note_array_end].display_vector[i] = partiture[partiture_next].display_vector[i];
+			}
+
+			// Atualiza array
 			++note_array_end;
 			note_array_end %= NOTE_ARRAY_SIZE;
 
@@ -471,6 +487,17 @@ int main(int argc, char* argv[]) {
 			if (!flag_note_ended){
 				break;
 			}
+
+			// Desaloca memoria alocada
+			if(note_array[note_array_begin].display_vector){
+				free(note_array[note_array_begin].display_vector);
+				note_array[note_array_begin].display_vector = NULL;
+			}
+
+			// anula ponteiro de imagem
+			if(note_array[note_array_begin].img){
+                                note_array[note_array_begin].img = NULL;
+                        }
 
 			// Se a nota acabou, fica no loop e atualiza inicio
 			++note_array_begin;
@@ -727,42 +754,46 @@ int main(int argc, char* argv[]) {
 		SDL_RenderPresent(renderer);
 
 		//while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
-		SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
 
 		/*	Checa eventos		*/
+		int isevt = -1;
 		switch(state){
 			case 1:
-				int isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
+				SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
+				isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
 				if (isevt) {
 					switch(event.type){
 						case SDL_QUIT:
 							state = 0;
 							break;
 						case SDL_MOUSEBUTTONDOWN:
-							// Verifica se acertou o clique no circulo
-							int note_position[2] = {INT_MIN, INT_MIN};
 
-							int colision_result = check_collision_note(&note_position[0], &note_position[1]);
+							// Verifica se acertou o clique no circulo
+
+							int colision_result = check_collision_note(&last_note_position[0], &last_note_position[1], &last_note_position[2]);
 							switch(colision_result){
 								case INT_MIN:
 									printf("sei la oque deu\n");
+									break;
+								case -1:
+									state = 2;
 									break;
 								case CLICK_PERFEITO:
 									printf("Colisao perfeita!\n");
 									score+= (multiplier* 9);
 									multiplier +=2;
-									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, last_note_position);
 									break;
 								case CLICK_BOM:
 									printf("Colisao boa!\n");
 									score+= (multiplier* 3);
 									multiplier +=1;
-									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, last_note_position);
 									break;
 								case CLICK_RUIM:
 									printf("Colisao ruim!\n");
 									score+= multiplier;
-									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, last_note_position);
 									break;
 								case CLICK_ERROU:
 									printf("Nao houve colisao! (-1 ponto)\n");
@@ -770,7 +801,7 @@ int main(int argc, char* argv[]) {
 										--score;
 									}
 									multiplier = 1;
-									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, note_position);
+									create_event(&event, custom_events_start, NOTE_CLICK, colision_result, last_note_position);
 									break;
 							}
 							if (multiplier > MAX_MULTIPLIER){
@@ -787,9 +818,8 @@ int main(int argc, char* argv[]) {
 								break;
 							}
 
-
-
-							switch( (event.user.code-EVENTS_NUMBER) ){
+							printf("%d\n", event.user.code-custom_events_start);
+							switch( (event.user.code-custom_events_start) ){
 								case NOTE_CLICK:
 									int delay = -1;
 									int spawn_time_variation = -1;
@@ -810,11 +840,6 @@ int main(int argc, char* argv[]) {
 									create_effect(effects_array, &effects_array_begin, &effects_array_end, effect_template, *(Effect_type*)event.user.data2,
 											((int*)event.user.data1)[0], ((int*)event.user.data1)[1], &tick_counter, delay, spawn_time_variation, base_ticks);
 									break;
-								case NOTE_DRAG:
-									state = 2;
-									break;
-
-
 							}
 
 							free(event.user.data1); event.user.data1 = NULL;
@@ -829,6 +854,59 @@ int main(int argc, char* argv[]) {
 				break;
 
 			case 2:
+				SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+				isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
+                                if (isevt) {
+					 switch(event.type){
+                                                case SDL_QUIT:
+                                                        state = 0;
+                                                        break;
+						case SDL_MOUSEMOTION:
+							int mousex = INT_MIN;
+							int mousey = INT_MIN;
+							SDL_GetMouseState(&mousex, &mousey);
+
+							int dx, dy;
+                					dx = dy = INT_MIN;
+
+							dx = mousex - note_array[last_note_position[2]].display_vector[2].x;
+			                                dy = mousey - note_array[last_note_position[2]].display_vector[2].y;
+
+							Effect_type drag_result = EFFECT_NUMBER;
+
+							if(	( (dx * dx + dy * dy) <= (note_array[last_note_position[2]].display_vector[2].c.radius * note_array[last_note_position[2]].display_vector[2].c.radius) )
+									&& (note_array[last_note_position[2]].display_vector[2].remaining_ticks >= 0)	){
+								int click_timing = abs( (note_array[last_note_position[2]].display_vector[2].base_ticks/2)-note_array[last_note_position[2]].display_vector[2].remaining_ticks );
+
+								note_array[last_note_position[2]].display_vector[2].remaining_ticks = -1;     // Remove circulo
+
+								if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/20) ){    // 10% do tempo
+									drag_result = CLICK_PERFEITO;
+								}
+
+								else if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/5) ){ // (40-10)% do tempo
+									drag_result = CLICK_BOM;
+								}
+
+								else{
+									drag_result = CLICK_RUIM;
+								}
+
+								mousex = note_array[last_note_position[2]].display_vector[2].x;
+								mousey = note_array[last_note_position[2]].display_vector[2].y;
+							}
+
+							create_event(&event, custom_events_start, NOTE_DRAG, drag_result, last_note_position);
+
+							state = 1;
+					}
+				}
+				else{
+                                        tickTime = 17;
+                                        ++tick_counter;       // Incrementa ticks
+                                        //printf("incrementa tick_counter! (tick_counter: %d. next_note_tick: %d)\n", tick_counter, next_note_tick);
+                                }
+                                break;
 				/*
 				 *
 				 *
@@ -880,7 +958,7 @@ FIM:
 		if (note_template[i].img){
 			for(int j = 0; j < note_template[i].img_number; j++){
 				SDL_DestroyTexture(note_template[i].img[j]);
-				note_template[i].img = NULL;
+				note_template[i].img[j] = NULL;
 			}
 
 			free(note_template[i].img);
@@ -968,37 +1046,17 @@ void generate_random_note(Note* note_template, Note* note) {
 	// Seta valores referentes a nota como um todo
 	int new_note_type = rand() % NOTE_NUMBER;
 	(*note) = note_template[new_note_type];
+
+	note->display_vector = NULL;
+	note->display_vector = (Note_display*) malloc( (note->size)* sizeof(Note_display));
+
 	int note_partition = rand() % total_partitions;
 	int starting_tick = 15 + (rand() % 46);     // Circulo inicia entre [0,25s;1s]
 	int base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
 	int remaining_ticks = base_ticks;
 
-	SDL_Color color = { rand() % 0xFF, rand() % 0XFF , rand() % 0XFF, 0xFF};
+	SDL_Color color = { rand() % 256, rand() % 256 , rand() % 256, 255};
 
-	// Seta valores de cada parte da nota
-	for(int i = 0; i < note->size; i++){
-
-		// Escolhe particao
-		note->display_vector[i].partition = note_partition;
-
-		// Escolhe tempo
-		note->display_vector[i].starting_tick = starting_tick;
-		note->display_vector[i].base_ticks = base_ticks; 
-		note->display_vector[i].remaining_ticks = remaining_ticks;
-
-
-		// Escolhe coordenadas
-		note->display_vector[i].x = note->display_vector[i].c.radius + (rand() % (PARTITION_WIDTH - 2*note->display_vector[i].c.radius)) + ( note->display_vector[i].partition* PARTITION_WIDTH);
-		note->display_vector[i].y = note->display_vector[i].c.radius + (rand() % (WINDOW_HEIGHT - 2*note->display_vector[i].c.radius));
-
-
-		// Escolhe cor
-		note->display_vector[i].color.r = rand() % 256;
-		note->display_vector[i].color.g = rand() % 256;
-		note->display_vector[i].color.b = rand() % 256;
-		note->display_vector[i].color.a = 255;
-
-	}
 	switch(note->type){
 		case CLICK:
 			note->display_vector[0].c.radius = rand() % 51 + 20;
@@ -1009,19 +1067,48 @@ void generate_random_note(Note* note_template, Note* note) {
 		case DRAG:
 			// Cria circulo inicial
 			note->display_vector[0].c.radius = rand() % 51 + 20;
-
 			// Cria circulo final
 			note->display_vector[2].c.radius = rand() % 51 + 20;
-
-			// Cria linha reta entre os dois circulos
-			note->display_vector[1].x = note->display_vector[0].x;
-			note->display_vector[1].y = note->display_vector[0].y;
-			note->display_vector[1].s.x2 = note->display_vector[2].x;
-			note->display_vector[1].s.y2 = note->display_vector[2].y;
-
-			// Coloca alpha fixo para reta suporte
-			note->display_vector[1].color.a = 0x88;
 			break;
+	}
+
+	// Seta valores de cada parte da nota
+        for(int i = 0; i < note->size; i++){
+
+                // Escolhe particao
+                note->display_vector[i].partition = note_partition;
+
+                // Escolhe tempo
+                note->display_vector[i].starting_tick = starting_tick;
+                note->display_vector[i].base_ticks = base_ticks;
+                note->display_vector[i].remaining_ticks = remaining_ticks;
+
+
+                // Escolhe coordenadas
+                note->display_vector[i].x = note->display_vector[i].c.radius + (rand() % (PARTITION_WIDTH - 2*note->display_vector[i].c.radius)) + ( note->display_vector[i].partition* PARTITION_WIDTH);
+                note->display_vector[i].y = note->display_vector[i].c.radius + (rand() % (WINDOW_HEIGHT - 2*note->display_vector[i].c.radius));
+
+
+                // Escolhe cor
+                note->display_vector[i].color.r = rand() % 256;
+                note->display_vector[i].color.g = rand() % 256;
+                note->display_vector[i].color.b = rand() % 256;
+                note->display_vector[i].color.a = 255;
+
+        }
+
+	if (note->type == DRAG){
+		// Cria linha reta entre os dois circulos
+                note->display_vector[1].x = note->display_vector[0].x;
+                note->display_vector[1].y = note->display_vector[0].y;
+                note->display_vector[1].s.x2 = note->display_vector[2].x;
+                note->display_vector[1].s.y2 = note->display_vector[2].y;
+
+		// Coloca alpha fixo para reta suporte
+                note->display_vector[1].color.a = 0x88;
+
+		// Coloca alpha fixo para circulo suporte
+                note->display_vector[2].color.a = 0x88;
 	}
 
 }
@@ -1033,7 +1120,7 @@ void generate_random_note(Note* note_template, Note* note) {
 // 1
 //
 // INT_MIN -> a
-int check_collision_note(int* x, int* y) {
+int check_collision_note(int* x, int* y, int* pos) {
 
 	SDL_GetMouseState(x, y);
 
@@ -1085,6 +1172,8 @@ int check_collision_note(int* x, int* y) {
 					(*x) = note_array[i].display_vector[0].x;
 					(*y) = note_array[i].display_vector[0].y;
 
+					(*pos) = i;
+
 					goto RETORNA_CLIQUE;
 				}
 				break;
@@ -1120,6 +1209,8 @@ int check_collision_note(int* x, int* y) {
 					(*x) = note_array[i].display_vector[0].x;
 					(*y) = note_array[i].display_vector[0].y;
 
+					(*pos) = i;
+
 					goto RETORNA_CLIQUE;
 				}
 				break;
@@ -1140,24 +1231,13 @@ int check_collision_note(int* x, int* y) {
 				if(     ( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
 						&& (note_array[i].display_vector[0].remaining_ticks >= 0) ){
 
-					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-
-					note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
-
-					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){    // 10% do tempo
-						output = CLICK_PERFEITO;
-					}
-
-					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-						output = CLICK_BOM;
-					}
-
-					else{
-						output = CLICK_RUIM;
-					}
-
 					(*x) = note_array[i].display_vector[0].x;
 					(*y) = note_array[i].display_vector[0].y;
+
+					(*pos) = i;
+
+
+					output = -1;
 
 					goto RETORNA_CLIQUE;
 				}
@@ -1266,6 +1346,21 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 			result = SDL_PushEvent(evt);
 
 			break;
+		case NOTE_DRAG:
+
+			// Sakve oisucai do mouse
+			evt->user.data1 = (int*) malloc(2* sizeof(int));
+                        ((int*)evt->user.data1)[0] = position[0];
+                        ((int*)evt->user.data1)[1] = position[1];
+
+			// Salva tag do efeito a ser realizado apos evento em data2
+                        evt->user.data2 = (Effect_type*) malloc(sizeof(Effect_type));
+                        (*(Effect_type*)evt->user.data2) = event_effect;
+
+			// Tenta jogar evento na fila
+                        result = SDL_PushEvent(evt);
+
+                        break;
 
 	}
 
