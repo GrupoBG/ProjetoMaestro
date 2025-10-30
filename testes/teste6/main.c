@@ -625,12 +625,18 @@ int main(int argc, char* argv[]) {
 
 						if( 255 < (note_array[i].display_vector[0].color.a + ( 255/(note_array[i].display_vector[0].base_ticks/2) ) ) ){
 
-							note_array[i].display_vector[0].color.a = note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = 255;
+							note_array[i].display_vector[0].color.a = 255;
+
+							note_array[i].display_vector[1].color.a = 255;
+
+							note_array[i].display_vector[2].color.a = 0x22;
 						}
 						else{
 							note_array[i].display_vector[0].color.a += ( 255/(note_array[i].display_vector[0].base_ticks/2) );
+							note_array[i].display_vector[1].color.a += ( 255/(note_array[i].display_vector[1].base_ticks/2) );
+							note_array[i].display_vector[2].color.a += ( 0x22/(note_array[i].display_vector[2].base_ticks/2) );
 
-							note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[0].color.a;
+
 						}
 
 					}
@@ -640,7 +646,8 @@ int main(int argc, char* argv[]) {
 
 							note_array[i].display_vector[0].color.a -= ( 255/(note_array[i].display_vector[0].base_ticks/2) );
 
-							note_array[i].display_vector[1].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[0].color.a;
+                                                        note_array[i].display_vector[1].color.a -= ( 255/(note_array[i].display_vector[1].base_ticks/2) );
+                                                        note_array[i].display_vector[2].color.a -= ( 0x22/(note_array[i].display_vector[2].base_ticks/2) );
 						}
 						else{
 							note_array[i].display_vector[0].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[2].color.a = 0;
@@ -819,12 +826,11 @@ int main(int argc, char* argv[]) {
 							}
 
 							printf("%d\n", event.user.code-custom_events_start);
+							int delay = -1;
+                                                        int spawn_time_variation = -1;
+                                                        int base_ticks = -1;
 							switch( (event.user.code-custom_events_start) ){
 								case NOTE_CLICK:
-									int delay = -1;
-									int spawn_time_variation = -1;
-									int base_ticks = -1;
-
 									switch( *(Effect_type*)event.user.data2 ){
 										case CLICK_PERFEITO:
 										case CLICK_BOM:
@@ -840,6 +846,22 @@ int main(int argc, char* argv[]) {
 									create_effect(effects_array, &effects_array_begin, &effects_array_end, effect_template, *(Effect_type*)event.user.data2,
 											((int*)event.user.data1)[0], ((int*)event.user.data1)[1], &tick_counter, delay, spawn_time_variation, base_ticks);
 									break;
+								case NOTE_DRAG:
+                                                                        switch( *(Effect_type*)event.user.data2 ){
+                                                                                case CLICK_PERFEITO:
+                                                                                case CLICK_BOM:
+                                                                                case CLICK_RUIM:
+                                                                                case CLICK_EXPIRADO:
+                                                                                case CLICK_ERROU:
+                                                                                        // Mensagem referente a clique/falta de clique no circulo
+                                                                                        delay = 5;
+                                                                                        spawn_time_variation = 0;
+                                                                                        base_ticks = 100;
+                                                                                        break;
+                                                                        }
+                                                                        create_effect(effects_array, &effects_array_begin, &effects_array_end, effect_template, *(Effect_type*)event.user.data2,
+                                                                                        ((int*)event.user.data1)[0], ((int*)event.user.data1)[1], &tick_counter, delay, spawn_time_variation, base_ticks);
+                                                                        break;
 							}
 
 							free(event.user.data1); event.user.data1 = NULL;
@@ -861,6 +883,7 @@ int main(int argc, char* argv[]) {
                                                 case SDL_QUIT:
                                                         state = 0;
                                                         break;
+						/*
 						case SDL_MOUSEMOTION:
 							int mousex = INT_MIN;
 							int mousey = INT_MIN;
@@ -894,17 +917,60 @@ int main(int argc, char* argv[]) {
 
 								mousex = note_array[last_note_position[2]].display_vector[2].x;
 								mousey = note_array[last_note_position[2]].display_vector[2].y;
+
+								create_event(&event, custom_events_start, NOTE_DRAG, drag_result, last_note_position);
+								state = 1;
 							}
-
-							create_event(&event, custom_events_start, NOTE_DRAG, drag_result, last_note_position);
-
-							state = 1;
+						*/
 					}
 				}
 				else{
-                                        tickTime = 17;
+					tickTime = 17;
                                         ++tick_counter;       // Incrementa ticks
-                                        //printf("incrementa tick_counter! (tick_counter: %d. next_note_tick: %d)\n", tick_counter, next_note_tick);
+					//printf("incrementa tick_counter! (tick_counter: %d. next_note_tick: %d)\n", tick_counter, next_note_tick);
+
+					if (note_array[last_note_position[2]].display_vector[0].remaining_ticks < 0){
+                                                state = 1;
+						break;
+                                        }
+
+
+					int mousex = INT_MIN;
+                                        int mousey = INT_MIN;
+                                        SDL_GetMouseState(&mousex, &mousey);
+
+                                        int dx, dy;
+                                        dx = dy = INT_MIN;
+
+                                        dx = mousex - note_array[last_note_position[2]].display_vector[2].x;
+                                        dy = mousey - note_array[last_note_position[2]].display_vector[2].y;
+
+                                        Effect_type drag_result = EFFECT_NUMBER;
+
+                                        if(     ( (dx * dx + dy * dy) <= (note_array[last_note_position[2]].display_vector[2].c.radius * note_array[last_note_position[2]].display_vector[2].c.radius) )
+                                                        && (note_array[last_note_position[2]].display_vector[2].remaining_ticks >= 0)   ){
+                                                int click_timing = abs( (note_array[last_note_position[2]].display_vector[2].base_ticks/2)-note_array[last_note_position[2]].display_vector[2].remaining_ticks );
+
+                                                note_array[last_note_position[2]].display_vector[2].remaining_ticks = -1;     // Remove circulo
+
+                                                if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/20) ){    // 10% do tempo
+                                                        drag_result = CLICK_PERFEITO;
+                                                }
+
+                                                else if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/5) ){ // (40-10)% do tempo
+                                                        drag_result = CLICK_BOM;
+                                                }
+
+                                                else{
+                                                        drag_result = CLICK_RUIM;
+                                                }
+
+                                                mousex = note_array[last_note_position[2]].display_vector[2].x;
+                                                mousey = note_array[last_note_position[2]].display_vector[2].y;
+
+                                                create_event(&event, custom_events_start, NOTE_DRAG, drag_result, last_note_position);
+                                                state = 1;
+                                        }
                                 }
                                 break;
 				/*
@@ -1068,7 +1134,7 @@ void generate_random_note(Note* note_template, Note* note) {
 			// Cria circulo inicial
 			note->display_vector[0].c.radius = rand() % 51 + 20;
 			// Cria circulo final
-			note->display_vector[2].c.radius = rand() % 51 + 20;
+			note->display_vector[2].c.radius = note->display_vector[0].c.radius;
 			break;
 	}
 
@@ -1090,9 +1156,9 @@ void generate_random_note(Note* note_template, Note* note) {
 
 
                 // Escolhe cor
-                note->display_vector[i].color.r = rand() % 256;
-                note->display_vector[i].color.g = rand() % 256;
-                note->display_vector[i].color.b = rand() % 256;
+                note->display_vector[i].color.r = color.r;
+                note->display_vector[i].color.g = color.g;
+                note->display_vector[i].color.b = color.b;
                 note->display_vector[i].color.a = 255;
 
         }
@@ -1105,10 +1171,10 @@ void generate_random_note(Note* note_template, Note* note) {
                 note->display_vector[1].s.y2 = note->display_vector[2].y;
 
 		// Coloca alpha fixo para reta suporte
-                note->display_vector[1].color.a = 0x88;
+                note->display_vector[1].color.a = 0x44;
 
 		// Coloca alpha fixo para circulo suporte
-                note->display_vector[2].color.a = 0x88;
+                note->display_vector[2].color.a = 0xFF;
 	}
 
 }
