@@ -1,6 +1,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_mixer.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -11,7 +12,9 @@
 
 #include "menu.h"
 
+#define SOUND_PATH "osu-hit-sound.wav"
 #define FONT_PATH_ITALIC "Libre_Baskerville/LibreBaskerville-Italic.ttf"
+#define MUSIC_PATH "Moonlight Sonata 1st Movement - Short Version (HD).wav"
 
 #define PARTITION_WIDTH 500
 #define WINDOW_WIDTH 1500
@@ -76,6 +79,11 @@ typedef struct{
 	short multiplier_value;
 } HUD;
 
+typedef struct {
+    Mix_Music* background_music;
+    Mix_Chunk* hit_sound;
+} AudioResources;
+
 
 Circle partiture[2000];
 int partiture_next = 0;
@@ -91,7 +99,7 @@ int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms);
 
 void generate_random_circle(Circle* circle);
 
-int check_collision_circle(int* x, int* y);
+int check_collision_circle(int* x, int* y, Mix_Chunk* hit_sound);
 
 void initiate_circle_array(Circle* array, int array_size);
 
@@ -110,8 +118,70 @@ void destroy_effect(Effect* effect_array, int pos);
 
 int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_type event_effect, int position[2]);
 
-int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start) {
+AudioResources* init_audio() {
+    AudioResources* audio = malloc(sizeof(AudioResources));
+    if (!audio) {
+        printf("Erro ao alocar memoria para recursos de audio\n");
+        return NULL;
+    }
+    
+    audio->background_music = NULL;
+    audio->hit_sound = NULL;
 
+    // Iniciar SDL_mixer com melhores configurações (musica esta com problemas de clipping)
+    if (Mix_OpenAudio(48000, AUDIO_S32SYS, 2, 8192) < 0) {
+        printf("Erro ao inicializar SDL_mixer: %s\n", Mix_GetError());
+        free(audio);
+        return NULL;
+    }
+
+    // Maior buffer de canais
+    Mix_AllocateChannels(4); // Aloca 4 canais de audio
+    
+
+    // Carregar efeitos sonoros
+    audio->hit_sound = Mix_LoadWAV(SOUND_PATH);
+    if (!audio->hit_sound) {
+        printf("Erro ao carregar som: %s\n", Mix_GetError());
+        Mix_CloseAudio();
+        free(audio);
+        return NULL;
+    }
+    
+    // Ajustar volumes
+    Mix_Volume(-1, MIX_MAX_VOLUME / 2); // Todos os canais de som sao 50% do volume maximo
+    Mix_VolumeChunk(audio->hit_sound, MIX_MAX_VOLUME / 2);
+
+    audio->background_music = Mix_LoadMUS(MUSIC_PATH);
+    if (!audio->background_music) {
+        printf("Erro ao carregar musica: %s\n", Mix_GetError());
+        Mix_FreeChunk(audio->hit_sound);
+        Mix_CloseAudio();
+        free(audio);
+        return NULL;
+    }
+
+    Mix_VolumeMusic(MIX_MAX_VOLUME / 3); // Musica 33% do volume maximo
+
+    return audio;
+}
+
+// Função para liberar recursos de audio
+void cleanup_audio(AudioResources* audio) {
+    if (audio) {
+        if (audio->hit_sound) {
+            Mix_FreeChunk(audio->hit_sound);
+        }
+        if (audio->background_music) {
+            Mix_HaltMusic();
+            Mix_FreeMusic(audio->background_music);
+        }
+        Mix_CloseAudio();
+        free(audio);
+    }
+}
+
+int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, Mix_Chunk* hit_sound) {
     int output = 0;
 
     int state = 1;
@@ -357,7 +427,7 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start) 
 
 	// Efeitos
 	for(int i = effects_array_begin; i != effects_array_end; i=((i+1)%EFFECTS_ARRAY_SIZE)){
-        // Adiciona checagem para caso o efeito já tenha sido destruído (display_vector == NULL)
+        // Adiciona checagem para caso o efeito ja tenha sido destruido (display_vector == NULL)
         if (effects_array[i].display_vector) { 
 		    // Checa se todas as particulas do efeito foram expiradas
 		    bool expired_effect = true;
@@ -378,7 +448,7 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start) 
 				    --effects_array[i].display_vector[j].remaining_ticks;
 			    }
 		    }
-		    // destroi efeito expirado
+		    // Destroi efeito expirado
 		    if(expired_effect){
 			    destroy_effect(effects_array, i);
 			    effects_array[i].size = 0;
@@ -417,10 +487,9 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start) 
 	                	state = 0; // Termina o jogo, volta ao menu
 				break;
 	    		case SDL_MOUSEBUTTONDOWN:
-		        // Verifica se acertou o clique no circulo
 				int circle_position[2] = {INT_MIN, INT_MIN};
-
-                		int colision_result = check_collision_circle(&circle_position[0], &circle_position[1]);
+				int colision_result = check_collision_circle(&circle_position[0], &circle_position[1], hit_sound);
+				
 				switch(colision_result){
 					case INT_MIN:
 						printf("sei la oque deu\n");
@@ -505,7 +574,6 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start) 
 
 
 GAME_FIM:
-    
 	/*	Desaloca tudo (do jogo)	*/
     // Desaloca todos os efeitos
     for(int i = effects_array_begin; i != effects_array_end; i=((i+1)% EFFECTS_ARRAY_SIZE )){
@@ -566,7 +634,7 @@ void generate_random_circle(Circle* circle) {
 }
 
 
-int check_collision_circle(int* x, int* y) {
+int check_collision_circle(int* x, int* y, Mix_Chunk* hit_sound) {
 
     SDL_GetMouseState(x, y);
 
@@ -588,8 +656,11 @@ int check_collision_circle(int* x, int* y) {
 	if( 	( (dx * dx + dy * dy) <= (circle_array[i].radius * circle_array[i].radius) )
 		&& (circle_array[i].remaining_ticks >= 0) ){
 
-			int click_timing = abs( (circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks );
+        // Toca o som quando acerta
+        Mix_PlayChannel(-1, hit_sound, 0);
 
+        int click_timing = abs((circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks);
+        
 			circle_array[i].remaining_ticks = -1;
 
 			if ( click_timing < (circle_array[i].base_ticks/20) ){	
@@ -746,7 +817,6 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 
 
 int main(int argc, char* argv[]) {
-
     /* Iniciacao de globais */
     int output = 0;
     int sdl_init_code = -1;
@@ -755,9 +825,10 @@ int main(int argc, char* argv[]) {
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
     TTF_Font* fnt = NULL;
+    AudioResources* audio = NULL;
 
-    /*	Iniciacao do SDL */
-    sdl_init_code = SDL_Init(SDL_INIT_VIDEO);
+    /*  Iniciacao do SDL */
+    sdl_init_code = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
     if (sdl_init_code < 0) {
         printf("Erro ao inicializar SDL: %s\n", SDL_GetError());
         output = -1;
@@ -794,7 +865,24 @@ int main(int argc, char* argv[]) {
         goto FIM;
     }
 
-    /*	Eventos custom	*/
+    // Inicialize o SDL_mixer após SDL_Init
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096) < 0) {
+        printf("Erro ao inicializar SDL_mixer: %s\n", Mix_GetError());
+        output = -1;
+        goto FIM;
+    }
+
+    Mix_AllocateChannels(16); // Limita para 16 canais de audio
+
+    // Carregue o efeito sonoro
+    Mix_Chunk* hit_sound = Mix_LoadWAV(SOUND_PATH);
+    if (!hit_sound) {
+        printf("Erro ao carregar som: %s\n", Mix_GetError());
+        output = -1;
+        goto FIM;
+    }
+    
+    /* Eventos custom */
     Uint32 custom_events_start = SDL_RegisterEvents(EVENTS_NUMBER);
     if (custom_events_start == ((Uint32)-1)) {
         printf("Erro ao registrar eventos customizados: %s\n", SDL_GetError());
@@ -802,6 +890,13 @@ int main(int argc, char* argv[]) {
         goto FIM;
     }
 
+    // Inicializa recursos de audio
+    audio = init_audio();
+    if (!audio) {
+        printf("Erro ao inicializar recursos de audio\n");
+        output = -1;
+        goto FIM;
+    }
 
     /* Loop principal */
     GameState current_state = STATE_MENU;
@@ -816,27 +911,30 @@ int main(int argc, char* argv[]) {
                 break;
                 
             case STATE_GAME:
-                // Chama a função do jogo
-                if (run_game(renderer, fnt, custom_events_start) < 0) {
+                // Inicia a musica quando o jogo começa
+                Mix_PlayMusic(audio->background_music, -1);
+    
+                // Chama a funcao do jogo
+                if (run_game(renderer, fnt, custom_events_start, audio->hit_sound) < 0) {
                     // Jogo teve um erro
                     printf("Erro critico durante a execucao do jogo\n");
                     output = -1;
                     current_state = STATE_QUIT;
                 } else {
-
+                    Mix_HaltMusic(); // Para a musica ao voltar para o menu
                     current_state = STATE_MENU;
                 }
                 break;
                 
             case STATE_OPTIONS:
-                // (Não implementado)
-                printf("Tela de Opções (não implementada). Voltando ao menu.\n");
+                // (Nao implementado)
+                printf("Tela de Opcoes (nao implementada). Voltando ao menu.\n");
                 current_state = STATE_MENU;
                 break;
 
             case STATE_CREDITS:
-                // (Não implementado)
-                printf("Tela de Créditos (não implementada). Voltando ao menu.\n");
+                // (Nao implementado)
+                printf("Tela de Creditos (nao implementada). Voltando ao menu.\n");
                 current_state = STATE_MENU;
                 break;
 
@@ -848,17 +946,13 @@ int main(int argc, char* argv[]) {
     }
 
 FIM:
-    /*	Desaloca tudo	*/
-
+    /*  Desaloca tudo    */
+    cleanup_audio(audio);
+    
     // Desaloca fonte
     if (fnt) {
-            TTF_CloseFont(fnt);
+        TTF_CloseFont(fnt);
     }
-
-    if (ttf_init_code>=0) {
-        TTF_Quit();
-    }
-
     /*	Finaliza SDL	*/
     if(renderer){
             SDL_DestroyRenderer(renderer);
