@@ -46,6 +46,8 @@ typedef struct {
 
 typedef struct {
 	Sint16 x2, y2;
+	double coeficient_1;
+	double coeficient_0;
 } Straight_line;
 typedef struct{
 	Sint16 radius;
@@ -82,7 +84,9 @@ typedef enum{
 
 // Cada parte da nota
 typedef struct{
-	Sint16 x, y;	// Posicao na tela
+	Sint16 x, y;	// Posicao atual na tela
+
+	Sint16 base_x, base_y;	// Posicao inicial na tela
 
 	int partition;      // Diz a qual particao o circulo pertence. partition<0 -> invalido
 	int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
@@ -429,6 +433,7 @@ int main(int argc, char* argv[]) {
 	/*	Execucao	*/
 
 	int last_note_position[3] = {INT_MIN, INT_MIN, INT_MIN};
+	int last_mouse_position[2] = {INT_MIN, INT_MIN};
 
 	while (state) {
 
@@ -699,6 +704,12 @@ int main(int argc, char* argv[]) {
 						multiplier = 1;
 						int expired_circle_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
 
+						/*
+						 *
+						 *	MUDAR CASO DE DRAG EXPIRANDO!
+						 *
+						 */
+
 						create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
 						if (score > 0){
 							--score;
@@ -766,6 +777,7 @@ int main(int argc, char* argv[]) {
 		int isevt = -1;
 		switch(state){
 			case 1:
+				while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
 				SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
 				isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
 				if (isevt) {
@@ -876,6 +888,7 @@ int main(int argc, char* argv[]) {
 				break;
 
 			case 2:
+				while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_MOUSEMOTION, SDL_MOUSEMOTION));
 				SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
 				isevt = AUX_WaitEventTimeoutCount(&event, &tickTime);
                                 if (isevt) {
@@ -883,45 +896,67 @@ int main(int argc, char* argv[]) {
                                                 case SDL_QUIT:
                                                         state = 0;
                                                         break;
-						/*
 						case SDL_MOUSEMOTION:
 							int mousex = INT_MIN;
-							int mousey = INT_MIN;
-							SDL_GetMouseState(&mousex, &mousey);
+                                        		int mousey = INT_MIN;
+		                                        SDL_GetMouseState(&mousex, &mousey);
+		
+                		                        double closest_coordinate_inline_y;
+                                		        double closest_coordinate_inline_x;
 
-							int dx, dy;
-                					dx = dy = INT_MIN;
+		                                        double mouse_relative_x = mousex - (note_array[last_note_position[2]].display_vector[1].x + note_array[last_note_position[2]].display_vector[1].partition * PARTITION_WIDTH);
+                		                        double mouse_relative_y = mousey - note_array[last_note_position[2]].display_vector[1].y;
 
-							dx = mousex - note_array[last_note_position[2]].display_vector[2].x;
-			                                dy = mousey - note_array[last_note_position[2]].display_vector[2].y;
+                                		        double dx = note_array[last_note_position[2]].display_vector[1].s.x2 - note_array[last_note_position[2]].display_vector[1].x;
+		                                        double dy = note_array[last_note_position[2]].display_vector[1].s.y2 - note_array[last_note_position[2]].display_vector[1].y;
+	
+        		                                double line_length_squared = dx * dx + dy * dy;
 
-							Effect_type drag_result = EFFECT_NUMBER;
+                        		                // Calcula proporcao da linha navegada
+                                        		double position_inline = (mouse_relative_x * dx + mouse_relative_y * dy)/line_length_squared;
 
-							if(	( (dx * dx + dy * dy) <= (note_array[last_note_position[2]].display_vector[2].c.radius * note_array[last_note_position[2]].display_vector[2].c.radius) )
-									&& (note_array[last_note_position[2]].display_vector[2].remaining_ticks >= 0)	){
-								int click_timing = abs( (note_array[last_note_position[2]].display_vector[2].base_ticks/2)-note_array[last_note_position[2]].display_vector[2].remaining_ticks );
+		                                        // Mantem circulo na linha
+                		                        if (position_inline < 0.0) position_inline = 0.0;
+                                		        if (position_inline > 1.0) position_inline = 1.0;
 
-								note_array[last_note_position[2]].display_vector[2].remaining_ticks = -1;     // Remove circulo
 
-								if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/20) ){    // 10% do tempo
-									drag_result = CLICK_PERFEITO;
-								}
+		                                        closest_coordinate_inline_y = ( note_array[last_note_position[2]].display_vector[1].y + position_inline * dy);
+                		                        closest_coordinate_inline_x = ( note_array[last_note_position[2]].display_vector[1].x + position_inline * dx);
 
-								else if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/5) ){ // (40-10)% do tempo
-									drag_result = CLICK_BOM;
-								}
+                                		        // Passa coordenada achada para o circulo
+		                                        note_array[last_note_position[2]].display_vector[0].x = closest_coordinate_inline_x;
+                		                        note_array[last_note_position[2]].display_vector[0].y = closest_coordinate_inline_y;
 
-								else{
-									drag_result = CLICK_RUIM;
-								}
 
-								mousex = note_array[last_note_position[2]].display_vector[2].x;
-								mousey = note_array[last_note_position[2]].display_vector[2].y;
 
-								create_event(&event, custom_events_start, NOTE_DRAG, drag_result, last_note_position);
-								state = 1;
-							}
-						*/
+                                		                        /*	Checa se chegou no outro circulo	*/
+
+		                                        int drag_result = INT_MIN;
+                		                        if(     (note_array[last_note_position[2]].display_vector[0].x == note_array[last_note_position[2]].display_vector[2].x)
+                                		        &&      (note_array[last_note_position[2]].display_vector[0].y == note_array[last_note_position[2]].display_vector[2].y)){
+
+                                                		int drag_timing = abs( (note_array[last_note_position[2]].display_vector[2].base_ticks/2)-note_array[last_note_position[2]].display_vector[2].remaining_ticks );
+
+		                                                for(int i = 0; i < note_array[last_note_position[2]].size; i++){
+                		                                        note_array[last_note_position[2]].display_vector[i].remaining_ticks = -1;     // Remove nota
+                                		                }
+		
+                		                                if ( drag_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/10) ){    // 20% do tempo
+                                		                        drag_result = CLICK_PERFEITO;
+                                                		}
+
+		                                                else if ( drag_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/3) ){ // (66.6-20)% do tempo
+                		                                        drag_result = CLICK_BOM;
+                                		                }
+
+                                                		else{
+		                                                        drag_result = CLICK_RUIM;
+                		                                }
+	
+        		                                        create_event(&event, custom_events_start, NOTE_DRAG, drag_result, last_note_position);
+                        		                        state = 1;
+                                        		}
+							break;
 					}
 				}
 				else{
@@ -933,31 +968,62 @@ int main(int argc, char* argv[]) {
                                                 state = 1;
 						break;
                                         }
+					
 
 
+						/*	Atualiza posicao do circula na reta	*/
+
+
+					/*
 					int mousex = INT_MIN;
                                         int mousey = INT_MIN;
                                         SDL_GetMouseState(&mousex, &mousey);
 
-                                        int dx, dy;
-                                        dx = dy = INT_MIN;
+					int closest_coordinate_inline_y = INT_MIN;
+					int closest_coordinate_inline_x = INT_MIN;
 
-                                        dx = mousex - note_array[last_note_position[2]].display_vector[2].x;
-                                        dy = mousey - note_array[last_note_position[2]].display_vector[2].y;
+					double mouse_relative_x = mousex - (note_array[last_note_position[2]].display_vector[1].x + note_array[last_note_position[2]].display_vector[1].partition * PARTITION_WIDTH);
+					double mouse_relative_y = mousey - note_array[last_note_position[2]].display_vector[1].y;
 
-                                        Effect_type drag_result = EFFECT_NUMBER;
+					double dx = note_array[last_note_position[2]].display_vector[1].s.x2 - note_array[last_note_position[2]].display_vector[1].x;
+					double dy = note_array[last_note_position[2]].display_vector[1].s.y2 - note_array[last_note_position[2]].display_vector[1].y;
 
-                                        if(     ( (dx * dx + dy * dy) <= (note_array[last_note_position[2]].display_vector[2].c.radius * note_array[last_note_position[2]].display_vector[2].c.radius) )
-                                                        && (note_array[last_note_position[2]].display_vector[2].remaining_ticks >= 0)   ){
-                                                int click_timing = abs( (note_array[last_note_position[2]].display_vector[2].base_ticks/2)-note_array[last_note_position[2]].display_vector[2].remaining_ticks );
+					double line_length_squared = dx * dx + dy * dy;
 
-                                                note_array[last_note_position[2]].display_vector[2].remaining_ticks = -1;     // Remove circulo
+					// Calcula proporcao da linha navegada
+					double position_inline = (mouse_relative_x * dx + mouse_relative_y * dy)/line_length_squared;
 
-                                                if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/20) ){    // 10% do tempo
+					// Mantem circulo na linha
+					if (position_inline < 0.0) position_inline = 0.0;
+					if (position_inline > 1.0) position_inline = 1.0;
+
+
+					closest_coordinate_inline_y = ( note_array[last_note_position[2]].display_vector[1].y + position_inline * dy);
+                                        closest_coordinate_inline_x = ( note_array[last_note_position[2]].display_vector[1].x + position_inline * dx);
+
+					// Passa coordenada achada para o circulo
+					note_array[last_note_position[2]].display_vector[0].x = closest_coordinate_inline_x;
+					note_array[last_note_position[2]].display_vector[0].y = closest_coordinate_inline_y;
+
+
+
+							Checa se chegou no outro circulo 
+
+					int drag_result = INT_MIN;
+					if(	(note_array[last_note_position[2]].display_vector[0].x == note_array[last_note_position[2]].display_vector[2].x)
+					&& 	(note_array[last_note_position[2]].display_vector[0].y == note_array[last_note_position[2]].display_vector[2].y)){
+
+						int drag_timing = abs( (note_array[last_note_position[2]].display_vector[2].base_ticks/2)-note_array[last_note_position[2]].display_vector[2].remaining_ticks );
+
+						for(int i = 0; i < note_array[last_note_position[2]].size; i++){
+	                                                note_array[last_note_position[2]].display_vector[i].remaining_ticks = -1;     // Remove nota
+						}
+
+                                                if ( drag_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/10) ){    // 20% do tempo
                                                         drag_result = CLICK_PERFEITO;
                                                 }
 
-                                                else if ( click_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/5) ){ // (40-10)% do tempo
+                                                else if ( drag_timing < (note_array[last_note_position[2]].display_vector[2].base_ticks/3) ){ // (66.6-20)% do tempo
                                                         drag_result = CLICK_BOM;
                                                 }
 
@@ -965,12 +1031,10 @@ int main(int argc, char* argv[]) {
                                                         drag_result = CLICK_RUIM;
                                                 }
 
-                                                mousex = note_array[last_note_position[2]].display_vector[2].x;
-                                                mousey = note_array[last_note_position[2]].display_vector[2].y;
-
                                                 create_event(&event, custom_events_start, NOTE_DRAG, drag_result, last_note_position);
                                                 state = 1;
-                                        }
+					}
+					*/
                                 }
                                 break;
 				/*
@@ -1118,7 +1182,7 @@ void generate_random_note(Note* note_template, Note* note) {
 
 	int note_partition = rand() % total_partitions;
 	int starting_tick = 15 + (rand() % 46);     // Circulo inicia entre [0,25s;1s]
-	int base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
+	int base_ticks = 120 + (rand() % 51); // Intervalo em ticks de existencia do circulo
 	int remaining_ticks = base_ticks;
 
 	SDL_Color color = { rand() % 256, rand() % 256 , rand() % 256, 255};
@@ -1154,6 +1218,10 @@ void generate_random_note(Note* note_template, Note* note) {
                 note->display_vector[i].x = note->display_vector[i].c.radius + (rand() % (PARTITION_WIDTH - 2*note->display_vector[i].c.radius)) + ( note->display_vector[i].partition* PARTITION_WIDTH);
                 note->display_vector[i].y = note->display_vector[i].c.radius + (rand() % (WINDOW_HEIGHT - 2*note->display_vector[i].c.radius));
 
+		// Copia coordenadas como as iniciais
+		note->display_vector[i].base_x = note->display_vector[i].x;
+		note->display_vector[i].base_y = note->display_vector[i].y;
+
 
                 // Escolhe cor
                 note->display_vector[i].color.r = color.r;
@@ -1170,11 +1238,21 @@ void generate_random_note(Note* note_template, Note* note) {
                 note->display_vector[1].s.x2 = note->display_vector[2].x;
                 note->display_vector[1].s.y2 = note->display_vector[2].y;
 
+		// Seta ponto inicial da reta
+		note->display_vector[1].base_x = note->display_vector[1].x;
+                note->display_vector[1].base_y = note->display_vector[1].y;
+
 		// Coloca alpha fixo para reta suporte
                 note->display_vector[1].color.a = 0x44;
 
 		// Coloca alpha fixo para circulo suporte
                 note->display_vector[2].color.a = 0xFF;
+
+		/*
+		// Pega formula da reta, para se movimentar por ela
+		note->display_vector[1].coeficient_0 = note->display_vector[1].base_x;
+		note->display_vector[1].coeficient_1 = abs(( (double) (note->display_vector[1].base_y -  note->display_vector[1].s.y2)) / ( (double) note->display_vector[1].base_x -  note->display_vector[1].s.x2) );
+		*/
 	}
 
 }
@@ -1414,7 +1492,7 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 			break;
 		case NOTE_DRAG:
 
-			// Sakve oisucai do mouse
+			// Salva posicao do mouse
 			evt->user.data1 = (int*) malloc(2* sizeof(int));
                         ((int*)evt->user.data1)[0] = position[0];
                         ((int*)evt->user.data1)[1] = position[1];
