@@ -347,7 +347,7 @@ int main(int argc, char* argv[]) {
 		initiate_note(&note_template[i]);
 	}
 
-	/*      Inicia partitura circular de notas       */
+	/*      Inicia partitura       */
 	for(int i = 0; i < partiture_size; i++){
 		generate_random_note(note_template, &partiture[i]);
 	}
@@ -705,7 +705,7 @@ int main(int argc, char* argv[]) {
 								break;
 							}
 
-							printf("Tipo de efeito %d\n", event.user.code-custom_events_start);
+							//printf("Tipo de efeito %d\n", event.user.code-custom_events_start);
 							int delay = -1;
                                                         int spawn_time_variation = -1;
                                                         int base_ticks = -1;
@@ -849,18 +849,6 @@ int main(int argc, char* argv[]) {
 					}
 				}
 				break;
-				/*
-				 *
-				 *
-				 *	- Implementar uma forma de lembrar qual nota esta arrastando
-				 *
-				 *	- Implementar uma forma de 
-				 *	
-				 *
-				 *
-				 *
-				 */
-
 
 		}
 	}
@@ -1185,7 +1173,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 	}
 
 RETORNA_CLIQUE:
-	printf("tipo: %d\n", note_array[*pos].type);
+	//	printf("Tipo da nota (posicao: %d) clicada: %d\n", (*pos), note_array[*pos].type);
 	return click_result;
 }
 
@@ -1197,7 +1185,7 @@ int check_drag_note(Note* note, int* x, int* y){
 	double closest_coordinate_inline_y;
 	double closest_coordinate_inline_x;
 
-	double mouse_relative_x = (*x) - (note->display_vector[1].x + note->display_vector[1].partition * PARTITION_WIDTH);
+	double mouse_relative_x = (*x) - note->display_vector[1].x;
 	double mouse_relative_y = (*y) - note->display_vector[1].base_y;
 
 	double dx = note->display_vector[1].s.x2 - note->display_vector[1].x;
@@ -1219,6 +1207,7 @@ int check_drag_note(Note* note, int* x, int* y){
         note->display_vector[0].x = closest_coordinate_inline_x;
         note->display_vector[0].y = closest_coordinate_inline_y;
 
+	//	printf("x: %d | mousex %d\ny: %d | mousey: %d\nx1: %d\n", note->display_vector[0].x, *x, note->display_vector[0].y, *y, note->display_vector[1].x);
 
 	int drag_result = INT_MIN;
 
