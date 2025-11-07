@@ -9,6 +9,7 @@
 #include <time.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <math.h>
 
 
 // Trocar path para local com a fonte,
@@ -243,6 +244,11 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 
 // Pega nota vazia e inicia com valores reais
 void initiate_note(Note* note);
+
+// Desenha nota e atualiza tempo de vida da mesma
+//
+// Saida define qual tipo de nota foi expirada
+int draw_note(SDL_Renderer* renderer, Note* note);
 
 
 int main(int argc, char* argv[]) {
@@ -551,180 +557,33 @@ int main(int argc, char* argv[]) {
 
 		// Notas
 		for(int i = note_array_begin; i != note_array_end; i=((i+1)%NOTE_ARRAY_SIZE)){
+			int draw_note_result = draw_note(renderer, &note_array[i]);
 
-			if (!note_array[i].display_vector){
-				continue;
-			}
-			
-			int click_timing;
+			int expired_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
 
-			switch(note_array[i].type){
-
-				case CLICK:
-				case MULTI_CLICK:
-					// Efeito de fade in
-					if((note_array[i].display_vector[0].remaining_ticks) > (note_array[i].display_vector[0].base_ticks/2)){
-
-						if( 255 < (note_array[i].display_vector[0].color.a + ( 255/(note_array[i].display_vector[0].base_ticks/2) ) ) ){
-							note_array[i].display_vector[0].color.a = 255;
-						}
-						else{
-							note_array[i].display_vector[0].color.a += ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-						}
-					}
-
-					// Efeito de fade out
-					else{
-						if(note_array[i].display_vector[0].color.a > ( 255/(note_array[i].display_vector[0].base_ticks/2))){
-							note_array[i].display_vector[0].color.a -= ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-						}
-						else{
-							note_array[i].display_vector[0].color.a = 0;
-						}
-					}
-
-					// Cria circulo exterior
-					click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-
-					if ( click_timing <= (note_array[i].display_vector[0].base_ticks/20) ){  // 10% do tempo
-
-						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-								0xFF, 0xFF, 0xFF, 0xFF);
-					}
-					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-
-						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-								0x00, 0x00, 0xFF, 0xFF);
-					}
-					else{
-						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-								0xFF, 0x00, 0x00, 0xFF);
-					}
-
-					// Se ainda tem tempo, desenha
-					if(note_array[i].display_vector[0].remaining_ticks >=0){
-
-						filledCircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, note_array[i].display_vector[0].c.radius,
-								note_array[i].display_vector[0].color.r, note_array[i].display_vector[0].color.g, note_array[i].display_vector[0].color.b, note_array[i].display_vector[0].color.a);
-
-						// Atualiza tempo
-						--note_array[i].display_vector[0].remaining_ticks;
-						if(note_array[i].display_vector[0].remaining_ticks < 0){
-							printf("\033[34mNota expirada! (-1 ponto)\033[0m\n");
-
-	                                                multiplier = 1;
-        	                                        int expired_circle_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
-
-                	                                create_event(&event, custom_events_start, CLICK, CLICK_EXPIRADO, expired_circle_position);
-                        	                        if (score > 0){
-                                	                        --score;
-                                        	        }
-						}
-					}
-					break;
-				case DRAG:
-					// Efeito de fade in
-					if((note_array[i].display_vector[0].remaining_ticks) > (note_array[i].display_vector[0].base_ticks/2)){
-
-						if( 255 < (note_array[i].display_vector[0].color.a + ( 255/(note_array[i].display_vector[0].base_ticks/2) ) ) ){
-
-							note_array[i].display_vector[0].color.a = 255;
-
-							note_array[i].display_vector[1].color.a = 255;
-
-							note_array[i].display_vector[2].color.a = 0x22;
-						}
-						else{
-							note_array[i].display_vector[0].color.a += ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-							note_array[i].display_vector[1].color.a += ( 255/(note_array[i].display_vector[1].base_ticks/2) );
-							note_array[i].display_vector[2].color.a += ( 0x22/(note_array[i].display_vector[2].base_ticks/2) );
-
-
-						}
-
-					}
-					// Efeito de fade out
-					else{
-						if(note_array[i].display_vector[0].color.a > ( 255/(note_array[i].display_vector[0].base_ticks/2))){
-
-							note_array[i].display_vector[0].color.a -= ( 255/(note_array[i].display_vector[0].base_ticks/2) );
-
-                                                        note_array[i].display_vector[1].color.a -= ( 255/(note_array[i].display_vector[1].base_ticks/2) );
-                                                        note_array[i].display_vector[2].color.a -= ( 0x22/(note_array[i].display_vector[2].base_ticks/2) );
-						}
-						else{
-							note_array[i].display_vector[0].color.a = note_array[i].display_vector[2].color.a = note_array[i].display_vector[2].color.a = 0;
-						}
-					}
-
-					// Cria circulo exterior
-					click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
-
-					if ( click_timing <= (note_array[i].display_vector[0].base_ticks/10) ){  // 20% do tempo
-
-						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-								0xFF, 0xFF, 0xFF, 0xFF);
-					}
-					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/3) ){ // (66.6-20)% do tempo
-
-						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-								0x00, 0x00, 0xFF, 0xFF);
-					}
-					else{
-						int external_circle_radius = note_array[i].display_vector[0].c.radius + click_timing;
-
-						aacircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, external_circle_radius,
-								0xFF, 0x00, 0x00, 0xFF);
-					}
-
-					// Se ainda tem tempo, desenha
-					if(note_array[i].display_vector[0].remaining_ticks >=0){
-
-						filledCircleRGBA(renderer, note_array[i].display_vector[0].x, note_array[i].display_vector[0].y, note_array[i].display_vector[0].c.radius,
-								note_array[i].display_vector[0].color.r, note_array[i].display_vector[0].color.g, note_array[i].display_vector[0].color.b, note_array[i].display_vector[0].color.a);
-
-						aalineRGBA(renderer, note_array[i].display_vector[1].x, note_array[i].display_vector[1].y, note_array[i].display_vector[1].s.x2, note_array[i].display_vector[1].s.y2,
-								note_array[i].display_vector[1].color.r, note_array[i].display_vector[1].color.g, note_array[i].display_vector[1].color.b, note_array[i].display_vector[1].color.a);
-
-						filledCircleRGBA(renderer, note_array[i].display_vector[2].x, note_array[i].display_vector[2].y, note_array[i].display_vector[2].c.radius,
-								note_array[i].display_vector[2].color.r, note_array[i].display_vector[2].color.g, note_array[i].display_vector[2].color.b, note_array[i].display_vector[2].color.a);
-
-
-						// Atualiza tempo
-						--note_array[i].display_vector[0].remaining_ticks;
-                                                note_array[i].display_vector[1].remaining_ticks = note_array[i].display_vector[2].remaining_ticks = note_array[i].display_vector[0].remaining_ticks;
-						if(note_array[i].display_vector[0].remaining_ticks < 0){
-							printf("\033[34mNota expirada! (-1 ponto)\033[0m\n");
-
-	                                                multiplier = 1;
-        	                                        int expired_circle_position[2] = {note_array[i].display_vector[0].x, note_array[i].display_vector[0].y};
-
-                	                                /*
-                        	                         *
-                                	                 *      MUDAR CASO DE DRAG EXPIRANDO!
-                                        	         *
-                                                	 */
-
-	                                                state = 1;
-        	                                        create_event(&event, custom_events_start, NOTE_DRAG, CLICK_EXPIRADO, expired_circle_position);
-                	                                if (score > 0){
-                        	                                --score;
-                                	                }
-						}
-
-					}
+			switch (draw_note_result){
+				case INT_MIN: // Nao expirou
 					break;
 
+				case 0: // Clique expirou
+					create_event(&event, custom_events_start, NOTE_CLICK, CLICK_EXPIRADO, expired_position);
+                                        if (score > 0){
+                                                --score;
+                                        }
+					multiplier = 1;
+					break;
+
+				case 1:	// Arrastar expirou
+					if(i == last_note_position[2]){
+						state = 1;
+					}
+
+					create_event(&event, custom_events_start, NOTE_DRAG, CLICK_EXPIRADO, expired_position);
+					if (score > 0){
+                                                --score;
+                                        }
+					multiplier = 1;
+					break;
 			}
 		}
 
@@ -1221,7 +1080,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 		return INT_MIN;
 	}
 
-	int output = CLICK_ERROU;
+	int click_result = CLICK_ERROU;
 
 
 	for(int i = ((note_array_end-1 + NOTE_ARRAY_SIZE)%NOTE_ARRAY_SIZE);
@@ -1249,15 +1108,15 @@ int check_collision_note(int* x, int* y, int* pos) {
 					note_array[i].display_vector[0].remaining_ticks = -1;	// Remove circulo
 
 					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){	// 10% do tempo
-						output = CLICK_PERFEITO;
+						click_result = CLICK_PERFEITO;
 					}
 
 					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-						output = CLICK_BOM;
+						click_result = CLICK_BOM;
 					}
 
 					else{
-						output = CLICK_RUIM;
+						click_result = CLICK_RUIM;
 					}
 
 					(*x) = note_array[i].display_vector[0].x;
@@ -1286,15 +1145,15 @@ int check_collision_note(int* x, int* y, int* pos) {
 					note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
 
 					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){    // 10% do tempo
-						output = CLICK_PERFEITO;
+						click_result = CLICK_PERFEITO;
 					}
 
 					else if ( click_timing < (note_array[i].display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-						output = CLICK_BOM;
+						click_result = CLICK_BOM;
 					}
 
 					else{
-						output = CLICK_RUIM;
+						click_result = CLICK_RUIM;
 					}
 
 					(*x) = note_array[i].display_vector[0].x;
@@ -1318,7 +1177,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 
                                         (*pos) = i;
 
-					output = -1;
+					click_result = -1;
 					goto RETORNA_CLIQUE;
 				}
 				break;
@@ -1327,7 +1186,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 
 RETORNA_CLIQUE:
 	printf("tipo: %d\n", note_array[*pos].type);
-	return output;
+	return click_result;
 }
 
 
@@ -1349,12 +1208,12 @@ int check_drag_note(Note* note, int* x, int* y){
 	// Calcula proporcao da linha navegada
 	double position_inline = (mouse_relative_x * dx + mouse_relative_y * dy)/line_length_squared;
 
-	// Mantem circulo na linha
-	if (position_inline < 0.0) position_inline = 0.0;
-	if (position_inline > 1.0) position_inline = 1.0;
 
-	closest_coordinate_inline_y = ( note->display_vector[1].y + position_inline * dy);
-	closest_coordinate_inline_x = ( note->display_vector[1].x + position_inline * dx);
+	// Mantem circulo na linha
+	position_inline = fmax(0.0, fmin(1.0, position_inline));
+
+	closest_coordinate_inline_x = ( (double) note->display_vector[1].x + position_inline * dx);
+	closest_coordinate_inline_y = ( (double) note->display_vector[1].y + position_inline * dy);
 
 	// Passa coordenada achada para o circulo
         note->display_vector[0].x = closest_coordinate_inline_x;
@@ -1364,7 +1223,7 @@ int check_drag_note(Note* note, int* x, int* y){
 	int drag_result = INT_MIN;
 
 	// Checa se o mouse NAO esta dentro do cilindro formado pelos dois circulos
-	if ( !(		( closest_coordinate_inline_x * closest_coordinate_inline_x + closest_coordinate_inline_y * closest_coordinate_inline_y) > note->display_vector[0].c.radius * note->display_vector[0].c.radius )
+	if ( ( (((double) (*x) - closest_coordinate_inline_x) *  ( (double) (*x) - closest_coordinate_inline_x) + ( (double) (*y) - closest_coordinate_inline_y) * ( (double) (*y) - closest_coordinate_inline_y)) > (note->display_vector[0].c.radius * note->display_vector[0].c.radius ) )
 	   ){
 		// Se o mouse nao estiver dentro desta area, falha o drag
 		for(int i = 0; i < note->size; i++){
@@ -1586,4 +1445,164 @@ void initiate_note(Note* note){
 			note->display_vector[2].type = CIRCLE;	// Circulo final
 			break;
 	}
+}
+
+int draw_note(SDL_Renderer* renderer, Note* note){
+	int draw_note_result = INT_MIN;
+	if (!note->display_vector){
+		goto RETORNA_DESENHO_NOTA;
+	}
+	int click_timing;
+
+	switch(note->type){
+
+		case CLICK:
+		case MULTI_CLICK:
+			// Efeito de fade in
+			if((note->display_vector[0].remaining_ticks) > (note->display_vector[0].base_ticks/2)){
+
+				if( 255 < (note->display_vector[0].color.a + ( 255/(note->display_vector[0].base_ticks/2) ) ) ){
+					note->display_vector[0].color.a = 255;
+				}
+				else{
+					note->display_vector[0].color.a += ( 255/(note->display_vector[0].base_ticks/2) );
+				}
+			}
+
+			// Efeito de fade out
+			else{
+				if(note->display_vector[0].color.a > ( 255/(note->display_vector[0].base_ticks/2))){
+					note->display_vector[0].color.a -= ( 255/(note->display_vector[0].base_ticks/2) );
+				}
+				else{
+					note->display_vector[0].color.a = 0;
+				}
+			}
+
+			// Cria circulo exterior
+			click_timing = abs( (note->display_vector[0].base_ticks/2)-note->display_vector[0].remaining_ticks );
+
+			if ( click_timing <= (note->display_vector[0].base_ticks/20) ){  // 10% do tempo
+
+				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
+
+				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
+						0xFF, 0xFF, 0xFF, 0xFF);
+			}
+			else if ( click_timing < (note->display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
+
+				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
+
+				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
+						0x00, 0x00, 0xFF, 0xFF);
+			}
+			else{
+				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
+
+				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
+						0xFF, 0x00, 0x00, 0xFF);
+			}
+
+			// Se ainda tem tempo, desenha
+			if(note->display_vector[0].remaining_ticks >=0){
+
+				filledCircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, note->display_vector[0].c.radius,
+						note->display_vector[0].color.r, note->display_vector[0].color.g, note->display_vector[0].color.b, note->display_vector[0].color.a);
+
+				// Atualiza tempo
+				--note->display_vector[0].remaining_ticks;
+				if(note->display_vector[0].remaining_ticks < 0){
+					printf("\033[34mNota expirada! (-1 ponto)\033[0m\n");
+					draw_note_result = 0;
+				}
+			}
+			break;
+		case DRAG:
+			// Efeito de fade in
+			if((note->display_vector[0].remaining_ticks) > (note->display_vector[0].base_ticks/2)){
+
+				if( 255 < (note->display_vector[0].color.a + ( 255/(note->display_vector[0].base_ticks/2) ) ) ){
+
+					note->display_vector[0].color.a = 255;
+
+					note->display_vector[1].color.a = 255;
+
+					note->display_vector[2].color.a = 0x22;
+				}
+				else{
+					note->display_vector[0].color.a += ( 255/(note->display_vector[0].base_ticks/2) );
+					note->display_vector[1].color.a += ( 255/(note->display_vector[1].base_ticks/2) );
+					note->display_vector[2].color.a += ( 0x22/(note->display_vector[2].base_ticks/2) );
+
+
+				}
+
+			}
+			// Efeito de fade out
+			else{
+				if(note->display_vector[0].color.a > ( 255/(note->display_vector[0].base_ticks/2))){
+
+					note->display_vector[0].color.a -= ( 255/(note->display_vector[0].base_ticks/2) );
+
+					note->display_vector[1].color.a -= ( 255/(note->display_vector[1].base_ticks/2) );
+					note->display_vector[2].color.a -= ( 0x22/(note->display_vector[2].base_ticks/2) );
+				}
+				else{
+					note->display_vector[0].color.a = note->display_vector[2].color.a = note->display_vector[2].color.a = 0;
+				}
+			}
+
+			// Cria circulo exterior
+			click_timing = abs( (note->display_vector[0].base_ticks/2)-note->display_vector[0].remaining_ticks );
+
+			if ( click_timing <= (note->display_vector[0].base_ticks/10) ){  // 20% do tempo
+
+				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
+
+				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
+						0xFF, 0xFF, 0xFF, 0xFF);
+			}
+			else if ( click_timing < (note->display_vector[0].base_ticks/3) ){ // (66.6-20)% do tempo
+
+				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
+
+				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
+						0x00, 0x00, 0xFF, 0xFF);
+			}
+			else{
+				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
+
+				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
+						0xFF, 0x00, 0x00, 0xFF);
+			}
+
+			// Se ainda tem tempo, desenha
+			if(note->display_vector[0].remaining_ticks >=0){
+
+				filledCircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, note->display_vector[0].c.radius,
+						note->display_vector[0].color.r, note->display_vector[0].color.g, note->display_vector[0].color.b, note->display_vector[0].color.a);
+
+				aalineRGBA(renderer, note->display_vector[1].x, note->display_vector[1].y, note->display_vector[1].s.x2, note->display_vector[1].s.y2,
+						note->display_vector[1].color.r, note->display_vector[1].color.g, note->display_vector[1].color.b, note->display_vector[1].color.a);
+
+				filledCircleRGBA(renderer, note->display_vector[2].x, note->display_vector[2].y, note->display_vector[2].c.radius,
+						note->display_vector[2].color.r, note->display_vector[2].color.g, note->display_vector[2].color.b, note->display_vector[2].color.a);
+
+
+				// Atualiza tempo
+				--note->display_vector[0].remaining_ticks;
+				note->display_vector[1].remaining_ticks = note->display_vector[2].remaining_ticks = note->display_vector[0].remaining_ticks;
+				if(note->display_vector[0].remaining_ticks < 0){
+					printf("\033[34mNota expirada! (-1 ponto)\033[0m\n");
+
+					draw_note_result = 1;
+				}
+
+			}
+			break;
+
+	}
+
+RETORNA_DESENHO_NOTA:
+	return draw_note_result;
 }
