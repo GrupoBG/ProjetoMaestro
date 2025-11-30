@@ -12,6 +12,7 @@ typedef enum {
     STATE_MENU,
     STATE_GAME,
     STATE_OPTIONS,
+    STATE_MUSIC_SELECT,
     STATE_CREDITS,
     STATE_QUIT
 } GameState;
@@ -30,6 +31,16 @@ typedef enum {
     OPTIONS_ITEM_COUNT // Contador de itens das opcoes
 } OptionsMenuItem;
 
+typedef enum {
+    MUSIC_MOONLIGHT,
+    MUSIC_2,
+    MUSIC_3,
+    MUSIC_4,
+    MUSIC_5,
+    MUSIC_BACK,
+    MUSIC_ITEM_COUNT // Contador de itens do menu de música
+} MusicMenuItem;
+
 // Estrutura para um item do menu (botão)
 typedef struct {
     SDL_Rect rect;          
@@ -47,6 +58,15 @@ typedef struct {
     SDL_Texture* texture_hover;
     OptionsMenuItem action;
 } OptionsButton;
+
+// Estrutura para um item do menu de seleção de música
+typedef struct {
+    SDL_Rect rect;
+    char* text;
+    SDL_Texture* texture;
+    SDL_Texture* texture_hover;
+    MusicMenuItem action;
+} MusicButton;
 
 // Estrutura para botões de controle (+ e -)
 typedef struct {
@@ -81,6 +101,173 @@ static inline int menu_AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms) {
     Uint32 decorrido = SDL_GetTicks() - antes;
     *ms = (*ms > decorrido) ? (*ms - decorrido) : 0;
     return isevt;
+}
+
+
+// Função para exibir o menu de seleção de música
+static inline GameState run_music_select_menu(SDL_Renderer* renderer, TTF_Font* fnt, int window_w, int window_h) {
+    
+    MusicButton buttons[MUSIC_ITEM_COUNT];
+    const char* labels[MUSIC_ITEM_COUNT] = {
+        "Moonlight Sonata Aleatoria",
+        "Musica 2",
+        "Musica 3",
+        "Musica 4",
+        "Musica 5",
+        "Voltar"
+    };
+    
+    SDL_Color color_normal = {0xFF, 0xFF, 0xFF, 0xFF}; // Branco
+    SDL_Color color_hover = {0xFF, 0xFF, 0x00, 0xFF};  // Amarelo para hover
+    
+    int button_w = 400;
+    int button_h = 60;
+    int spacing = 20;
+    
+    // Posição do título "Selecione uma Música"
+    int title_y = 50;
+    
+    // Posição inicial dos botões de música
+    int start_y = 150;
+    int start_x = (window_w - button_w) / 2;
+    
+    // Inicializa e cria as texturas dos botões
+    for (int i = 0; i < MUSIC_ITEM_COUNT; i++) {
+        buttons[i].text = (char*)labels[i];
+        buttons[i].action = (MusicMenuItem)i;
+        buttons[i].rect.x = start_x;
+        buttons[i].rect.y = start_y + i * (button_h + spacing);
+        buttons[i].rect.w = button_w;
+        buttons[i].rect.h = button_h;
+
+        // Criar texturas
+        menu_create_text(renderer, &buttons[i].texture, buttons[i].text, color_normal, fnt);
+        menu_create_text(renderer, &buttons[i].texture_hover, buttons[i].text, color_hover, fnt);
+
+        if (!buttons[i].texture || !buttons[i].texture_hover) {
+            printf("Erro ao criar textura para o botao %s: %s\n", labels[i], SDL_GetError());
+            return STATE_QUIT; // Falha
+        }
+        
+        printf("Botão música %d criado em Y=%d\n", i, buttons[i].rect.y);
+    }
+
+    bool running = true;
+    GameState next_state = STATE_MUSIC_SELECT;
+    int mouse_x = 0, mouse_y = 0;
+    SDL_GetMouseState(&mouse_x, &mouse_y);
+
+    Uint32 tickTime = 17;
+    SDL_Event event;
+
+    SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
+
+    while (running) {
+        
+        int isevt = menu_AUX_WaitEventTimeoutCount(&event, &tickTime);
+
+        if (isevt) {
+            switch (event.type) {
+                case SDL_QUIT:
+                    running = false;
+                    next_state = STATE_QUIT;
+                    break;
+
+                case SDL_MOUSEBUTTONDOWN:
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        SDL_GetMouseState(&mouse_x, &mouse_y);
+                        SDL_Point mouse_pos = {mouse_x, mouse_y};
+                        
+                        for (int i = 0; i < MUSIC_ITEM_COUNT; i++) {
+                            if (SDL_PointInRect(&mouse_pos, &buttons[i].rect)) {
+                                // Botão clicado
+                                printf("Botão de música clicado: %s\n", buttons[i].text);
+                                
+                                switch (buttons[i].action) {
+                                    case MUSIC_MOONLIGHT:
+                                        printf("Iniciando jogo com Moonlight Sonata...\n");
+                                        next_state = STATE_GAME;
+                                        running = false;
+                                        break;
+                                    case MUSIC_2:
+                                    case MUSIC_3:
+                                    case MUSIC_4:
+                                    case MUSIC_5:
+                                        printf("Musica %s nao foi implementada ainda!\n", buttons[i].text);
+                                        break;
+                                    case MUSIC_BACK:
+                                        printf("Voltando ao menu principal...\n");
+                                        next_state = STATE_MENU;
+                                        running = false;
+                                        break;
+                                    default:
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                    break;
+            }
+        } else {
+            tickTime = 17;
+        }
+
+        // --- Renderização ---
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Fundo preto
+        SDL_RenderClear(renderer);
+
+        SDL_GetMouseState(&mouse_x, &mouse_y);
+        SDL_Point mouse_pos = {mouse_x, mouse_y};
+
+        // Desenha título "Selecione uma Música"
+        SDL_Color white = {0xFF, 0xFF, 0xFF, 0xFF};
+        SDL_Texture* title_tex = NULL;
+        menu_create_text(renderer, &title_tex, "Selecione uma Musica", white, fnt);
+        
+        if (title_tex) {
+            int tex_w, tex_h;
+            SDL_QueryTexture(title_tex, NULL, NULL, &tex_w, &tex_h);
+            SDL_Rect title_rect = {(window_w - tex_w) / 2, title_y, tex_w, tex_h};
+            SDL_RenderCopy(renderer, title_tex, NULL, &title_rect);
+            SDL_DestroyTexture(title_tex);
+        }
+
+        // Desenhar botões
+        for (int i = 0; i < MUSIC_ITEM_COUNT; i++) {
+            SDL_Texture* tex_to_render;
+
+            // Verifica se o mouse está sobre o botão
+            if (SDL_PointInRect(&mouse_pos, &buttons[i].rect)) {
+                tex_to_render = buttons[i].texture_hover;
+            } else {
+                tex_to_render = buttons[i].texture;
+            }
+
+            // Centraliza a textura dentro do retângulo do botão
+            int tex_w, tex_h;
+            SDL_QueryTexture(tex_to_render, NULL, NULL, &tex_w, &tex_h);
+            
+            SDL_Rect dest_rect;
+            dest_rect.w = tex_w;
+            dest_rect.h = tex_h;
+            dest_rect.x = buttons[i].rect.x + (buttons[i].rect.w - tex_w) / 2;
+            dest_rect.y = buttons[i].rect.y + (buttons[i].rect.h - tex_h) / 2;
+
+            SDL_RenderCopy(renderer, tex_to_render, NULL, &dest_rect);
+        }
+
+        SDL_RenderPresent(renderer);
+    }
+    
+    SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+
+    // Limpeza das texturas
+    for (int i = 0; i < MUSIC_ITEM_COUNT; i++) {
+        SDL_DestroyTexture(buttons[i].texture);
+        SDL_DestroyTexture(buttons[i].texture_hover);
+    }
+
+    return next_state;
 }
 
 
@@ -120,7 +307,6 @@ static inline GameState run_options_menu(SDL_Renderer* renderer, TTF_Font* fnt, 
     buttons[OPTIONS_BACK].rect.w = button_w;
     buttons[OPTIONS_BACK].rect.h = button_h;
     
-    printf("DEBUG: Criando textura para botão 'Voltar'\n");
     menu_create_text(renderer, &buttons[OPTIONS_BACK].texture, "Voltar", color_normal, fnt);
     menu_create_text(renderer, &buttons[OPTIONS_BACK].texture_hover, "Voltar", color_hover, fnt);
     
@@ -418,8 +604,11 @@ static inline GameState run_menu(SDL_Renderer* renderer, TTF_Font* fnt, int wind
                                 // Botão clicado
                                 switch (buttons[i].action) {
                                     case MENU_JOGAR:
-                                        next_state = STATE_GAME;
-                                        running = false;
+                                        printf("Jogar clicado - abrindo seleção de música\n");
+                                        next_state = run_music_select_menu(renderer, fnt, window_w, window_h);
+                                        if (next_state == STATE_GAME) {
+                                            running = false;
+                                        }
                                         break;
                                     case MENU_OPCOES:
                                         // Abre o submenu de opções, passando o ponteiro global de volume
