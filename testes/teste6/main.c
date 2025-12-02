@@ -63,10 +63,10 @@ typedef enum{
 	CLICK,
 	MULTI_CLICK,
 	STRAIGHT_DRAG,
+/*
 	ARC_DRAG,
 	ROUND_DRAG,
-
-
+*/
 	NOTE_NUMBER
 } Note_type;
 
@@ -76,12 +76,13 @@ typedef enum{
 	// Tipos que usam SDL_gfx
 	CIRCLE,
 	STRAIGHT_LINE,
+/*
 	ARC,
 	ROUND,
-	// Tipos que nao usao SDL_gfx
+	// Tipos que nao usam SDL_gfx
 	IMAGE,
 
-
+*/
 	NOTE_DISPLAY_NUMBER
 } Note_display_type;
 
@@ -106,9 +107,10 @@ typedef struct{
 	union {
 		Circle c;
 		Straight_line s;
+/*
 		Arc a;
 		Round r;
-
+*/
 		SDL_Texture* img;
 	};
 
@@ -862,6 +864,12 @@ int main(int argc, char* argv[]) {
 	printf("\033[36mFim de Jogo! Sua pontuacao e: %d\033[0m\n", score);
 	printf("\033[36mTotal de circulos gerados: %d\033[0m\n", partiture_next);
 
+	while (note_array_begin != note_array_end){
+		printf("\033[36mTipo de nota[%d]: %d\033[0m\n", note_array_begin, note_array[note_array_begin].type);
+		note_array_begin++;
+		note_array_begin %= NOTE_ARRAY_SIZE;
+	}
+
 
 	printf("\n\n\033[36minicio do buffer: %d\nfim do buffer: %d\033[0m\n", note_array_begin, note_array_end);
 
@@ -969,7 +977,7 @@ int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms){
 	return isevt;
 }
 
-// Gera circulo aleatorio
+// Gera nota aleatoria
 void generate_random_note(Note* note_template, Note* note) {
 
 	/*
@@ -999,6 +1007,9 @@ void generate_random_note(Note* note_template, Note* note) {
 			note->display_vector[0].c.radius = rand() % 51 + 20;
 			break;
 		case MULTI_CLICK:
+
+			color.r = color.g = color.b = color.a = 255;
+
 			note->display_vector[0].c.radius = rand() % 71 + 20;
 			break;
 		case STRAIGHT_DRAG:
@@ -1057,6 +1068,7 @@ void generate_random_note(Note* note_template, Note* note) {
 			// Coloca alpha fixo para circulo suporte
 			note->display_vector[2].color.a = 0xFF;
 			break;
+/*
 		case ARC_DRAG:
 			// Pega x e y intermediario entre inicio e fim
 			note->display_vector[1].x =  (int) ( (double) (note->display_vector[0].x + note->display_vector[2].x)/2.0);
@@ -1104,6 +1116,7 @@ void generate_random_note(Note* note_template, Note* note) {
 
                         note->display_vector[1].a.radius = sqrt(dx * dx + dy * dy);
 			break;
+*/
 	}
 
 }
@@ -1221,6 +1234,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 					goto RETORNA_CLIQUE;
 				}
 				break;
+/*
 			case ARC_DRAG:
 				dx = (*x) - note_array[i].display_vector[0].x;
                                 dy = (*y) - note_array[i].display_vector[0].y;
@@ -1253,7 +1267,9 @@ int check_collision_note(int* x, int* y, int* pos) {
                                         goto RETORNA_CLIQUE;
                                 }
 				break;
+*/
 		}
+
 	}
 
 RETORNA_CLIQUE:
@@ -1337,21 +1353,23 @@ int check_drag_note(Note* note, int* x, int* y){
 					drag_result = CLICK_RUIM;
 				}
 			}
+/*
 		case ARC_DRAG:
 			mouse_relative_x = (*x) - note->display_vector[0].x;
                         mouse_relative_y = (*y) - note->display_vector[0].base_y;
 
 
-			/*
-			 *
-			 *	Mexendo aqui
-			 *
-			 *
-			 */
+			*
+			*
+			*	Mexendo aqui
+			*
+			*
+			*
 
 			break;
 		case ROUND_DRAG:
 			break;
+*/
 	}
 
 RETORNA_ARRASTO:
@@ -1488,12 +1506,14 @@ void initiate_note(Note* note){
 		case STRAIGHT_DRAG:
 			note->size = 3;
 			break;
+/*
 		case ARC_DRAG:
 			note->size = 3;
                         break;
 		case ROUND_DRAG:
 			note->size = 3;
                         break;
+*/
 	}
 
 	// Aloca vetor de display
@@ -1505,8 +1525,10 @@ void initiate_note(Note* note){
 		case CLICK:
 		case MULTI_CLICK:
 		case STRAIGHT_DRAG:
+/*
 		case ARC_DRAG:
                 case ROUND_DRAG:
+*/
 			for(int i = 0; i < note->size; i++){
 				note->display_vector[i].img = NULL;
 			}
@@ -1536,6 +1558,7 @@ void initiate_note(Note* note){
 			note->display_vector[1].type = STRAIGHT_LINE;	// Percurso
 			note->display_vector[2].type = CIRCLE;	// Circulo final
 			break;
+/*
 		case ARC_DRAG:
                         note->display_vector[0].type = CIRCLE;  // Circulo inicial
                         note->display_vector[1].type = ARC;   // Percurso
@@ -1546,6 +1569,7 @@ void initiate_note(Note* note){
                         note->display_vector[1].type = ROUND;   // Percurso
                         note->display_vector[2].type = CIRCLE;  // Circulo final
                         break;
+*/
 	}
 }
 
@@ -1708,23 +1732,25 @@ int draw_note(SDL_Renderer* renderer, Note* note){
 
 			}
 			break;
+/*
 		case ARC_DRAG:
-			/*
-			 *
-			 *
-			 *      Desenha Arco
-			 *
-			 *
-			 */
+			*
+			*
+			*
+			*      Desenha Arco
+			*
+			*
+			*
 			break;
 		case ROUND_DRAG:
-			/*
-			 *
-			 *      Desenha circulo
-			 *
-			 *
-			 */
+			*
+			*
+			*      Desenha circulo
+			*
+			*
+			*
 			break;
+*/
 	}
 
 RETORNA_DESENHO_NOTA:
