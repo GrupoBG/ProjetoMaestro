@@ -31,11 +31,9 @@
 
 /* TODO 
  *
- *	- Implementar logica de notas de fato (tirando o stub)
+ *	- Implementar notas de arrasto circular e em arco
  *
  *	- Pensar em arte para colocar como background
- *
- * 
  *
  */
 
@@ -47,21 +45,26 @@ typedef struct {
 
 typedef struct {
 	Sint16 x2, y2;
-	double coeficient_1;
-	double coeficient_0;
 } Straight_line;
 typedef struct{
 	Sint16 radius;
 	Sint16 start, end;
 } Arc;
+typedef struct{
+	Sint16 radius;
+} Round;
 
 /*	Definicao de nota	*/
+
+//int NOTE_NUMBER = 3;
 
 // Tipo de nota
 typedef enum{
 	CLICK,
 	MULTI_CLICK,
-	DRAG,
+	STRAIGHT_DRAG,
+	ARC_DRAG,
+	ROUND_DRAG,
 
 
 	NOTE_NUMBER
@@ -74,6 +77,7 @@ typedef enum{
 	CIRCLE,
 	STRAIGHT_LINE,
 	ARC,
+	ROUND,
 	// Tipos que nao usao SDL_gfx
 	IMAGE,
 
@@ -103,6 +107,7 @@ typedef struct{
 		Circle c;
 		Straight_line s;
 		Arc a;
+		Round r;
 
 		SDL_Texture* img;
 	};
@@ -113,6 +118,8 @@ typedef struct{
 // Nota a ser referenciada
 typedef struct{
 	Note_type type;
+
+	bool is_finished;
 
 	int img_number;
 	SDL_Texture** img;
@@ -994,7 +1001,7 @@ void generate_random_note(Note* note_template, Note* note) {
 		case MULTI_CLICK:
 			note->display_vector[0].c.radius = rand() % 71 + 20;
 			break;
-		case DRAG:
+		case STRAIGHT_DRAG:
 			// Cria circulo inicial
 			note->display_vector[0].c.radius = rand() % 51 + 20;
 			// Cria circulo final
@@ -1031,22 +1038,72 @@ void generate_random_note(Note* note_template, Note* note) {
 
         }
 
-	if (note->type == DRAG){
-		// Cria linha reta entre os dois circulos
-                note->display_vector[1].x = note->display_vector[0].x;
-                note->display_vector[1].y = note->display_vector[0].y;
-                note->display_vector[1].s.x2 = note->display_vector[2].x;
-                note->display_vector[1].s.y2 = note->display_vector[2].y;
+	double dx, dy;
+	switch(note->type){
+		case STRAIGHT_DRAG:
+			// Cria linha reta entre os dois circulos
+			note->display_vector[1].x = note->display_vector[0].x;
+			note->display_vector[1].y = note->display_vector[0].y;
+			note->display_vector[1].s.x2 = note->display_vector[2].x;
+			note->display_vector[1].s.y2 = note->display_vector[2].y;
 
-		// Seta ponto inicial da reta
-		note->display_vector[1].base_x = note->display_vector[1].x;
-                note->display_vector[1].base_y = note->display_vector[1].y;
+			// Seta ponto inicial da reta
+			note->display_vector[1].base_x = note->display_vector[1].x;
+			note->display_vector[1].base_y = note->display_vector[1].y;
 
-		// Coloca alpha fixo para reta suporte
-                note->display_vector[1].color.a = 0x44;
+			// Coloca alpha fixo para reta suporte
+			note->display_vector[1].color.a = 0x44;
 
-		// Coloca alpha fixo para circulo suporte
-                note->display_vector[2].color.a = 0xFF;
+			// Coloca alpha fixo para circulo suporte
+			note->display_vector[2].color.a = 0xFF;
+			break;
+		case ARC_DRAG:
+			// Pega x e y intermediario entre inicio e fim
+			note->display_vector[1].x =  (int) ( (double) (note->display_vector[0].x + note->display_vector[2].x)/2.0);
+			note->display_vector[1].y =  (int) ( (double) (note->display_vector[0].y + note->display_vector[2].y)/2.0);
+
+			// Pega o raio
+			dx = note->display_vector[1].x - note->display_vector[2].x;
+			dy = note->display_vector[1].y - note->display_vector[2].y;
+
+			note->display_vector[1].a.radius = sqrt(dx * dx + dy * dy);
+
+			// Pega a angulatura dos pontos
+			double angle1 = atan2(note->display_vector[0].y - note->display_vector[1].y, note->display_vector[0].x - note->display_vector[1].x) * (180.0 / M_PI);
+			double angle2 = atan2(note->display_vector[0].y - note->display_vector[1].y, note->display_vector[0].x - note->display_vector[1].x) * (180.0 / M_PI);
+
+			angle1 = fmod((angle1 + 90.0 + 360.0), 360.0);
+			angle2 = fmod((angle2 + 90.0 + 360.0), 360.0);
+
+
+			// Define se arco vai pela direita ou esquerda
+			int arc_going_right = rand() %2;
+			if(arc_going_right){
+				note->display_vector[1].a.start = fmax(angle1, angle2);
+				note->display_vector[1].a.end = fmin(angle1, angle2);
+			}
+			else{
+				note->display_vector[1].a.start = fmin(angle1, angle2);
+				note->display_vector[1].a.end = fmax(angle1, angle2);
+			}
+
+
+                        break;
+                case ROUND_DRAG:
+			// Pega x e y intermediario entre inicio e fim
+                        note->display_vector[1].x = (int) ( (double) (note->display_vector[0].x + note->display_vector[2].x)/2.0);
+                        note->display_vector[1].y = (int) ( (double) (note->display_vector[0].y + note->display_vector[2].y)/2.0);
+
+			// Conserta posicao final
+			note->display_vector[2].x = note->display_vector[0].x;
+                        note->display_vector[2].y = note->display_vector[0].y;
+
+                        // Pega o raio
+                        dx = note->display_vector[1].x - note->display_vector[2].x;
+                        dy = note->display_vector[1].y - note->display_vector[2].y;
+
+                        note->display_vector[1].a.radius = sqrt(dx * dx + dy * dy);
+			break;
 	}
 
 }
@@ -1094,6 +1151,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
 
 					note_array[i].display_vector[0].remaining_ticks = -1;	// Remove circulo
+					note_array[i].is_finished = true;	
 
 					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){	// 10% do tempo
 						click_result = CLICK_PERFEITO;
@@ -1116,12 +1174,6 @@ int check_collision_note(int* x, int* y, int* pos) {
 				}
 				break;
 			case MULTI_CLICK:
-				/*
-				 *
-				 *      So funciona com circulos por enquanto
-				 *
-				 *
-				 */
 				dx = (*x) - note_array[i].display_vector[0].x;
 				dy = (*y) - note_array[i].display_vector[0].y;
 
@@ -1130,7 +1182,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 
 					int click_timing = abs( (note_array[i].display_vector[0].base_ticks/2)-note_array[i].display_vector[0].remaining_ticks );
 
-					note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
+					// note_array[i].display_vector[0].remaining_ticks = -1;     // Remove circulo
 
 					if ( click_timing < (note_array[i].display_vector[0].base_ticks/20) ){    // 10% do tempo
 						click_result = CLICK_PERFEITO;
@@ -1152,7 +1204,7 @@ int check_collision_note(int* x, int* y, int* pos) {
 					goto RETORNA_CLIQUE;
 				}
 				break;
-			case DRAG:
+			case STRAIGHT_DRAG:
 
 				dx = (*x) - note_array[i].display_vector[0].x;
                                 dy = (*y) - note_array[i].display_vector[0].y;
@@ -1169,6 +1221,38 @@ int check_collision_note(int* x, int* y, int* pos) {
 					goto RETORNA_CLIQUE;
 				}
 				break;
+			case ARC_DRAG:
+				dx = (*x) - note_array[i].display_vector[0].x;
+                                dy = (*y) - note_array[i].display_vector[0].y;
+
+                                if(     ( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
+                                                && (note_array[i].display_vector[0].remaining_ticks >= 0) ){
+
+                                        (*x) = note_array[i].display_vector[0].x;
+                                        (*y) = note_array[i].display_vector[0].y;
+
+                                        (*pos) = i;
+
+                                        click_result = -1;
+                                        goto RETORNA_CLIQUE;
+                                }
+				break;
+			case ROUND_DRAG:
+				dx = (*x) - note_array[i].display_vector[0].x;
+                                dy = (*y) - note_array[i].display_vector[0].y;
+
+                                if(     ( (dx * dx + dy * dy) <= (note_array[i].display_vector[0].c.radius * note_array[i].display_vector[0].c.radius) )
+                                                && (note_array[i].display_vector[0].remaining_ticks >= 0) ){
+
+                                        (*x) = note_array[i].display_vector[0].x;
+                                        (*y) = note_array[i].display_vector[0].y;
+
+                                        (*pos) = i;
+
+                                        click_result = -1;
+                                        goto RETORNA_CLIQUE;
+                                }
+				break;
 		}
 	}
 
@@ -1182,68 +1266,92 @@ int check_drag_note(Note* note, int* x, int* y){
 
 	SDL_GetMouseState(x, y);
 
-	double closest_coordinate_inline_y;
-	double closest_coordinate_inline_x;
+	double closest_coordinate_inline_x, closest_coordinate_inline_y;
+	double mouse_relative_x, mouse_relative_y;
+	double dx, dy;
 
-	double mouse_relative_x = (*x) - note->display_vector[1].x;
-	double mouse_relative_y = (*y) - note->display_vector[1].base_y;
+	double position_inline;
 
-	double dx = note->display_vector[1].s.x2 - note->display_vector[1].x;
-	double dy = note->display_vector[1].s.y2 - note->display_vector[1].y;
+	int drag_result;
+	switch (note->type){
+		case STRAIGHT_DRAG:
+			mouse_relative_x = (*x) - note->display_vector[1].x;
+			mouse_relative_y = (*y) - note->display_vector[1].base_y;
 
-	double line_length_squared = dx * dx + dy * dy;
+			dx = note->display_vector[1].s.x2 - note->display_vector[1].x;
+			dy = note->display_vector[1].s.y2 - note->display_vector[1].y;
 
-	// Calcula proporcao da linha navegada
-	double position_inline = (mouse_relative_x * dx + mouse_relative_y * dy)/line_length_squared;
+			double line_length_squared = dx * dx + dy * dy;
+
+			// Calcula proporcao da linha navegada
+			position_inline = (mouse_relative_x * dx + mouse_relative_y * dy)/line_length_squared;
 
 
-	// Mantem circulo na linha
-	position_inline = fmax(0.0, fmin(1.0, position_inline));
+			// Mantem circulo na linha
+			position_inline = fmax(0.0, fmin(1.0, position_inline));
 
-	closest_coordinate_inline_x = ( (double) note->display_vector[1].x + position_inline * dx);
-	closest_coordinate_inline_y = ( (double) note->display_vector[1].y + position_inline * dy);
+			closest_coordinate_inline_x = ( (double) note->display_vector[1].x + position_inline * dx);
+			closest_coordinate_inline_y = ( (double) note->display_vector[1].y + position_inline * dy);
 
-	// Passa coordenada achada para o circulo
-        note->display_vector[0].x = closest_coordinate_inline_x;
-        note->display_vector[0].y = closest_coordinate_inline_y;
+			// Passa coordenada achada para o circulo
+			note->display_vector[0].x = closest_coordinate_inline_x;
+			note->display_vector[0].y = closest_coordinate_inline_y;
 
-	//	printf("x: %d | mousex %d\ny: %d | mousey: %d\nx1: %d\n", note->display_vector[0].x, *x, note->display_vector[0].y, *y, note->display_vector[1].x);
+			//	printf("x: %d | mousex %d\ny: %d | mousey: %d\nx1: %d\n", note->display_vector[0].x, *x, note->display_vector[0].y, *y, note->display_vector[1].x);
 
-	int drag_result = INT_MIN;
+			drag_result = INT_MIN;
 
-	// Checa se o mouse NAO esta dentro do cilindro formado pelos dois circulos
-	if ( ( (((double) (*x) - closest_coordinate_inline_x) *  ( (double) (*x) - closest_coordinate_inline_x) + ( (double) (*y) - closest_coordinate_inline_y) * ( (double) (*y) - closest_coordinate_inline_y)) > (note->display_vector[0].c.radius * note->display_vector[0].c.radius ) )
-	   ){
-		// Se o mouse nao estiver dentro desta area, falha o drag
-		for(int i = 0; i < note->size; i++){
-			note->display_vector[i].remaining_ticks = -1;     // Remove nota
-		}
-		drag_result = CLICK_ERROU;
+			// Checa se o mouse NAO esta dentro do cilindro formado pelos dois circulos
+			if ( ( (((double) (*x) - closest_coordinate_inline_x) *  ( (double) (*x) - closest_coordinate_inline_x) + ( (double) (*y) - closest_coordinate_inline_y) * ( (double) (*y) - closest_coordinate_inline_y)) > (note->display_vector[0].c.radius * note->display_vector[0].c.radius ) )
+			   ){
+				// Se o mouse nao estiver dentro desta area, falha o drag
+				note->is_finished = true;
+				for(int i = 0; i < note->size; i++){
+					note->display_vector[i].remaining_ticks = -1;     // Remove nota
+				}
+				drag_result = CLICK_ERROU;
 
-		goto RETORNA_ARRASTO;
-	}
+				goto RETORNA_ARRASTO;
+			}
 
-	/*      Checa se chegou no outro circulo        */
-	if(     (note->display_vector[0].x == note->display_vector[2].x)
-			&&      (note->display_vector[0].y == note->display_vector[2].y)){
+			/*      Checa se chegou no outro circulo        */
+			if(     (note->display_vector[0].x == note->display_vector[2].x)
+					&&      (note->display_vector[0].y == note->display_vector[2].y)){
 
-		int drag_timing = abs( (note->display_vector[2].base_ticks/2)-note->display_vector[2].remaining_ticks );
+				int drag_timing = abs( (note->display_vector[2].base_ticks/2)-note->display_vector[2].remaining_ticks );
 
-		for(int i = 0; i < note->size; i++){
-			note->display_vector[i].remaining_ticks = -1;     // Remove nota
-		}
+				note->is_finished = true;
+				for(int i = 0; i < note->size; i++){
+					note->display_vector[i].remaining_ticks = -1;     // Remove nota
+				}
 
-		if ( drag_timing < (note->display_vector[2].base_ticks/10) ){    // 20% do tempo
-			drag_result = CLICK_PERFEITO;
-		}
+				if ( drag_timing < (note->display_vector[2].base_ticks/10) ){    // 20% do tempo
+					drag_result = CLICK_PERFEITO;
+				}
 
-		else if ( drag_timing < (note->display_vector[2].base_ticks/3) ){ // (66.6-20)% do tempo
-			drag_result = CLICK_BOM;
-		}
+				else if ( drag_timing < (note->display_vector[2].base_ticks/3) ){ // (66.6-20)% do tempo
+					drag_result = CLICK_BOM;
+				}
 
-		else{
-			drag_result = CLICK_RUIM;
-		}
+				else{
+					drag_result = CLICK_RUIM;
+				}
+			}
+		case ARC_DRAG:
+			mouse_relative_x = (*x) - note->display_vector[0].x;
+                        mouse_relative_y = (*y) - note->display_vector[0].base_y;
+
+
+			/*
+			 *
+			 *	Mexendo aqui
+			 *
+			 *
+			 */
+
+			break;
+		case ROUND_DRAG:
+			break;
 	}
 
 RETORNA_ARRASTO:
@@ -1333,21 +1441,7 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 	int result = -1;
 	switch(code){
 		case NOTE_CLICK: // Evento que cria efeito ao clicar
-
-			// Salva posicao do mouse em data1
-			evt->user.data1 = (int*) malloc(2* sizeof(int));
-			((int*)evt->user.data1)[0] = position[0];
-			((int*)evt->user.data1)[1] = position[1];
-
-			// Salva tag do efeito a ser realizado apos evento em data2
-			evt->user.data2 = (Effect_type*) malloc(sizeof(Effect_type));
-			(*(Effect_type*)evt->user.data2) = event_effect;
-
-			// Tenta jogar evento na fila
-			result = SDL_PushEvent(evt);
-
-			break;
-		case NOTE_DRAG:
+		case NOTE_DRAG:	// Evento que cria efeito ao arrastar
 
 			// Salva posicao do mouse
 			evt->user.data1 = (int*) malloc(2* sizeof(int));
@@ -1391,19 +1485,28 @@ void initiate_note(Note* note){
 		case MULTI_CLICK:
 			note->size = 1;
 			break;
-		case DRAG:
+		case STRAIGHT_DRAG:
 			note->size = 3;
 			break;
+		case ARC_DRAG:
+			note->size = 3;
+                        break;
+		case ROUND_DRAG:
+			note->size = 3;
+                        break;
 	}
 
 	// Aloca vetor de display
+	note->is_finished = false;
 	note->display_vector = (Note_display*) malloc( (note->size)* sizeof(Note_display));
 
 	// Aloca imagens a serem usadas
 	switch(note->type){
 		case CLICK:
 		case MULTI_CLICK:
-		case DRAG:
+		case STRAIGHT_DRAG:
+		case ARC_DRAG:
+                case ROUND_DRAG:
 			for(int i = 0; i < note->size; i++){
 				note->display_vector[i].img = NULL;
 			}
@@ -1428,19 +1531,35 @@ void initiate_note(Note* note){
 		case MULTI_CLICK:
 			note->display_vector[0].type = CIRCLE;
 			break;
-		case DRAG:
+		case STRAIGHT_DRAG:
 			note->display_vector[0].type = CIRCLE;	// Circulo inicial
 			note->display_vector[1].type = STRAIGHT_LINE;	// Percurso
 			note->display_vector[2].type = CIRCLE;	// Circulo final
 			break;
+		case ARC_DRAG:
+                        note->display_vector[0].type = CIRCLE;  // Circulo inicial
+                        note->display_vector[1].type = ARC;   // Percurso
+                        note->display_vector[2].type = CIRCLE;  // Circulo final
+                        break;
+                case ROUND_DRAG:
+                        note->display_vector[0].type = CIRCLE;  // Circulo inicial
+                        note->display_vector[1].type = ROUND;   // Percurso
+                        note->display_vector[2].type = CIRCLE;  // Circulo final
+                        break;
 	}
 }
 
 int draw_note(SDL_Renderer* renderer, Note* note){
 	int draw_note_result = INT_MIN;
-	if (!note->display_vector){
+	if (!note->display_vector
+	||	note->is_finished){
 		goto RETORNA_DESENHO_NOTA;
 	}
+
+	if(note->display_vector[0].remaining_ticks < 0){
+		goto RETORNA_DESENHO_NOTA;
+	}
+
 	int click_timing;
 
 	switch(note->type){
@@ -1500,13 +1619,13 @@ int draw_note(SDL_Renderer* renderer, Note* note){
 
 				// Atualiza tempo
 				--note->display_vector[0].remaining_ticks;
-				if(note->display_vector[0].remaining_ticks < 0){
+				if(note->display_vector[0].remaining_ticks < 0 && note->type != MULTI_CLICK){
 					printf("\033[34mNota expirada! (-1 ponto)\033[0m\n");
 					draw_note_result = 0;
 				}
 			}
 			break;
-		case DRAG:
+		case STRAIGHT_DRAG:
 			// Efeito de fade in
 			if((note->display_vector[0].remaining_ticks) > (note->display_vector[0].base_ticks/2)){
 
@@ -1589,7 +1708,23 @@ int draw_note(SDL_Renderer* renderer, Note* note){
 
 			}
 			break;
-
+		case ARC_DRAG:
+			/*
+			 *
+			 *
+			 *      Desenha Arco
+			 *
+			 *
+			 */
+			break;
+		case ROUND_DRAG:
+			/*
+			 *
+			 *      Desenha circulo
+			 *
+			 *
+			 */
+			break;
 	}
 
 RETORNA_DESENHO_NOTA:
