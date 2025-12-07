@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
 		goto FIM;
 	}
 	// Cria a janela
-	window = SDL_CreateWindow("Prototipo 6",
+	window = SDL_CreateWindow("Prototipo 8",
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 			WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
 	if (!window) {
@@ -322,7 +322,12 @@ int main(int argc, char* argv[]) {
 			++partiture_next;
 
 			// Atualiza proximo circulo na partitura e tempo da ultima nota
-			next_note_tick = tick_counter + partiture[partiture_next].display_vector[0].starting_tick;
+			if(partiture_next < partiture_size){
+				next_note_tick = tick_counter + partiture[partiture_next].display_vector[0].starting_tick;
+			}
+			else{
+				next_note_tick = INT_MAX;
+			}
 
 
 			printf("\033[0;32mCirculo criado! (espacos possiveis para novos circulo: %d )\033[0m\n",

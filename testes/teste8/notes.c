@@ -733,7 +733,7 @@ Note* parse_partiture(char* partiture_string, int* partiture_size){
 
         Note* current_note = &partiture[0];
         // Entre em loop
-        while (*line){
+        while (line != NULL){
 
                 char* first_char = &line[0];
                 char* next_camp = strchr(line, ',');
@@ -772,7 +772,7 @@ Note* parse_partiture(char* partiture_string, int* partiture_size){
                 } Partiture_camp;
 
                 Partiture_camp camp_position = PARTITION;
-                int type_specific_camp_position;
+                int type_specific_camp_position = 0;
 
                 // Itera sobre cada campo presente na linha
                 while(next_camp = strpbrk(next_camp, ",\n")){
@@ -782,6 +782,8 @@ Note* parse_partiture(char* partiture_string, int* partiture_size){
                         camp_string[next_camp-first_char] = '\0';
 
                         int camp_integer = atoi(camp_string);
+
+			printf("camp_pos: %d, camp_integer: %d\n", camp_position, camp_integer);
 
                         // Adiciona campo pego a nota, a partir da posicao do campo na linha lida
                         switch(camp_position){
@@ -801,7 +803,7 @@ Note* parse_partiture(char* partiture_string, int* partiture_size){
 					}
                                         break;
                                 case POSITION_X:
-	                                current_note->display_vector[0].x = current_note->display_vector[0].base_x = camp_integer;
+	                                current_note->display_vector[0].x = current_note->display_vector[0].base_x = camp_integer + (current_note->display_vector[0].partition*PARTITION_WIDTH);
                                         break;
                                 case POSITION_Y:
                                         current_note->display_vector[0].y = current_note->display_vector[0].base_y = camp_integer;
@@ -838,13 +840,15 @@ Note* parse_partiture(char* partiture_string, int* partiture_size){
                                                                 case 0: // raio
                                                                         current_note->display_vector[0].c.radius = current_note->display_vector[2].c.radius = camp_integer;
                                                                 case 1: // x2 (x final)
-                                                                        current_note->display_vector[2].x = camp_integer;
+                                                                        current_note->display_vector[2].x =
+										camp_integer + (current_note->display_vector[2].partition*PARTITION_WIDTH) + current_note->display_vector[2].c.radius;
                                                                         break;
                                                                 case 2: // y2 (y final)
                                                                         current_note->display_vector[2].y = camp_integer;
                                                                         break;
                                                         }
                                         }
+					++type_specific_camp_position;
                         }
 
                         // Proximo campo
@@ -860,15 +864,18 @@ Note* parse_partiture(char* partiture_string, int* partiture_size){
                 switch(type_number){
                         case CLICK:
                         case MULTI_CLICK:
-
-                                /*
-                                 *
-                                 *      Ainda precisa truncar x e y caso passe dos limites da tela!
-                                 *
-                                 */
+				if ((current_note->display_vector[0].x + current_note->display_vector[0].c.radius) < (current_note->display_vector[0].partition+1)*PARTITION_WIDTH){
+					current_note->display_vector[0].x += current_note->display_vector[0].c.radius;
+				}
 
                                 break;
                         case STRAIGHT_DRAG:
+
+
+				if ((current_note->display_vector[2].x + current_note->display_vector[2].c.radius) < (current_note->display_vector[0].partition+1)*PARTITION_WIDTH){
+                                        current_note->display_vector[0].x += current_note->display_vector[0].c.radius;
+                                }
+
                                 // Cria linha reta entre os dois circulos
                                 current_note->display_vector[1].x =  current_note->display_vector[0].x;
                                 current_note->display_vector[1].y =  current_note->display_vector[0].y;
