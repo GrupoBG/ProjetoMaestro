@@ -373,7 +373,7 @@ static inline GameState run_options_menu(SDL_Renderer* renderer, TTF_Font* fnt, 
                                         (*volume)--;
                                         // Aplica o volume ao mixer de áudio SDL
                                         int mixer_volume = ((*volume) * SDL_MIX_MAXVOLUME) / 10;
-                                        Mix_MasterVolume(mixer_volume);
+                                        Mix_Volume(-1, mixer_volume);
                                         printf("Volume diminuído para: %d%%\n", *volume * 10);
                                     }
                                 } else if (control_buttons[i].type == 1) {
@@ -382,7 +382,7 @@ static inline GameState run_options_menu(SDL_Renderer* renderer, TTF_Font* fnt, 
                                         (*volume)++;
                                         // Aplica o volume ao mixer de áudio SDL
                                         int mixer_volume = ((*volume) * SDL_MIX_MAXVOLUME) / 10;
-                                        Mix_MasterVolume(mixer_volume);
+                                        Mix_Volume(-1, mixer_volume);
                                         printf("Volume aumentado para: %d%%\n", *volume * 10);
                                     }
                                 }

@@ -130,17 +130,16 @@ AudioResources* init_audio() {
     audio->background_music = NULL;
     audio->hit_sound = NULL;
 
-    // Iniciar SDL_mixer com melhores configurações (musica esta com problemas de clipping)
-    if (Mix_OpenAudio(48000, AUDIO_S32SYS, 2, 8192) < 0) {
+    // Ultra-low latency settings para jogo de ritmo
+    if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 512) < 0) {
         printf("Erro ao inicializar SDL_mixer: %s\n", Mix_GetError());
         free(audio);
         return NULL;
     }
 
-    // Maior buffer de canais
-    Mix_AllocateChannels(4); // Aloca 4 canais de audio
+    // Reduzir canais para melhor performance
+    Mix_AllocateChannels(2);
     
-
     // Carregar efeitos sonoros
     audio->hit_sound = Mix_LoadWAV(SOUND_PATH);
     if (!audio->hit_sound) {
@@ -152,7 +151,7 @@ AudioResources* init_audio() {
     
     // Ajustar volumes baseado na variável global de volume
     int mixer_volume = (global_volume * SDL_MIX_MAXVOLUME) / 10;
-    Mix_Volume(-1, mixer_volume); // Todos os canais de som
+    Mix_Volume(-1, mixer_volume);
     Mix_VolumeChunk(audio->hit_sound, mixer_volume);
 
     audio->background_music = Mix_LoadMUS(MUSIC_PATH);
@@ -164,7 +163,6 @@ AudioResources* init_audio() {
         return NULL;
     }
 
-    // Define volume da musica de fundo (66% do volume do jogo)
     int music_volume = (global_volume * SDL_MIX_MAXVOLUME) / 15;
     Mix_VolumeMusic(music_volume);
 
@@ -891,22 +889,14 @@ int main(int argc, char* argv[]) {
     }
 
     // Inicialize o SDL_mixer após SDL_Init
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096) < 0) {
+    if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 512) < 0) {
         printf("Erro ao inicializar SDL_mixer: %s\n", Mix_GetError());
         output = -1;
         goto FIM;
     }
 
-    Mix_AllocateChannels(16); // Limita para 16 canais de audio
+    Mix_AllocateChannels(2); // Apenas 2 canais: música + hit sound
 
-    // Carregue o efeito sonoro
-    Mix_Chunk* hit_sound = Mix_LoadWAV(SOUND_PATH);
-    if (!hit_sound) {
-        printf("Erro ao carregar som: %s\n", Mix_GetError());
-        output = -1;
-        goto FIM;
-    }
-    
     /* Eventos custom */
     Uint32 custom_events_start = SDL_RegisterEvents(EVENTS_NUMBER);
     if (custom_events_start == ((Uint32)-1)) {
@@ -934,7 +924,9 @@ int main(int argc, char* argv[]) {
                 // Chama a função do menu.h, passando ponteiro para volume global
                 current_state = run_menu(renderer, fnt, WINDOW_WIDTH, WINDOW_HEIGHT, &global_volume);
                 // Atualiza volumes de áudio após retornar do menu
-                update_audio_volumes(hit_sound);
+                if (audio) {
+                    update_audio_volumes(audio->hit_sound);
+                }
                 break;
                 
             case STATE_GAME:
