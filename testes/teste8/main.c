@@ -1,5 +1,4 @@
 #include <SDL2/SDL.h>
-//#include <SDL_mixer.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_ttf.h>
 
@@ -17,17 +16,7 @@
 
 // Trocar path para local com a fonte,
 // ao reexecutar codigo
-
 #define FONT_PATH_ITALIC "Libre_Baskerville/LibreBaskerville-Italic.ttf"
-
-// Configuracao de tela
-#define PARTITION_WIDTH 300
-#define WINDOW_WIDTH 900
-#define WINDOW_HEIGHT 600
-
-// Configuracao de array
-#define EFFECTS_ARRAY_SIZE 1000
-#define NOTE_ARRAY_SIZE 100
 
 #define MAX_SCORE 9999999999
 #define MAX_MULTIPLIER 99
@@ -65,6 +54,13 @@ typedef struct{
 
 /*	Globais		*/
 
+
+// Hard coded no momento,
+// mas no futuro, menu selecionara texto dependendo de opcao clicada
+char* music_name = "musics/Bach-Overture_No.1-Passepied.mp3";
+
+char* partiture_name = "partitures/Bach-Overture_No.1-Passepied.csv";
+
 // Ponteiro alocado dinamicamente com todas as notas usadas
 Note* partiture = NULL;
 int partiture_next = 0;
@@ -78,6 +74,9 @@ int total_partitions = -1;
 Note note_array[NOTE_ARRAY_SIZE];
 int note_array_begin = 0;
 int note_array_end = 0;
+
+Note note_template[NOTE_NUMBER];
+
 
 // Lida com evento
 int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms);
@@ -177,8 +176,6 @@ int main(int argc, char* argv[]) {
 
 
 	/*	Inicia templates de notas	*/
-	Note note_template[NOTE_NUMBER];
-
 	for(int i = 0; i < NOTE_NUMBER; i++){
 		// Nullify array
 		note_template[i].type = i;
@@ -190,10 +187,12 @@ int main(int argc, char* argv[]) {
 		initiate_note(&note_template[i]);
 	}
 
-	/*      Inicia partitura       */
-	for(int i = 0; i < partiture_size; i++){
-		generate_random_note(note_template, &partiture[i]);
-	}
+
+	/*	Inicia partitura	*/
+	char* partiture_string = read_partiture(partiture_name);
+
+	partiture = parse_partiture(partiture_string, &partiture_size);
+
 
 	Uint32 next_note_tick = partiture[0].display_vector[0].starting_tick;
 
@@ -719,6 +718,10 @@ FIM:
 			partiture[i].display_vector = NULL;
 		}
 	}
+	if(partiture){
+		free(partiture);
+		partiture = NULL;
+	}
 
 	// Desaloca todas as notas
 	for(int i = note_array_begin; i != note_array_end; i=((i+1)% NOTE_ARRAY_SIZE )){
@@ -840,43 +843,6 @@ void create_text(SDL_Renderer* ren, SDL_Texture** text, char* text_content, SDL_
    }
    */
 
-void create_effect(Effect* effect_array, int* effect_array_begin, int* effect_array_end, Effect* effect_templates, int effect_template,
-		int x, int y, int* now, int delay, int spawn_time_variation, int base_ticks){
-
-	if( (( (*effect_array_end) +1)% EFFECTS_ARRAY_SIZE) != (*effect_array_begin) ){
-		effect_array[*effect_array_end] = effect_templates[effect_template];
-
-		effect_array[*effect_array_end].display_vector = (Effect_display*) malloc(effect_array[*effect_array_end].size*(sizeof(Effect_display)));
-
-		int next_spawn = (*now) + delay;
-
-		for (int i = 0; i < effect_array[*effect_array_end].size; i++){
-			effect_array[*effect_array_end].display_vector[i].x = x - (effect_array[*effect_array_end].w/2);
-			effect_array[*effect_array_end].display_vector[i].y = y - (effect_array[*effect_array_end].h/2);
-			effect_array[*effect_array_end].display_vector[i].starting_tick = next_spawn;
-			effect_array[*effect_array_end].display_vector[i].remaining_ticks = base_ticks;
-			effect_array[*effect_array_end].display_vector[i].base_ticks = base_ticks;
-
-			next_spawn += spawn_time_variation;
-		}
-
-
-		++(*effect_array_end);
-		(*effect_array_end) %= EFFECTS_ARRAY_SIZE;
-	}
-	else{
-		printf("Erro! Muitos efeitos na tela\n");
-	}
-
-}
-
-void destroy_effect(Effect* effects_array, int pos){
-	assert(effects_array[pos].display_vector);
-	free(effects_array[pos].display_vector);
-	effects_array[pos].display_vector = NULL;
-}
-
-
 int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_type event_effect, int position[2]){
 
 	evt->user.type = SDL_USEREVENT;
@@ -919,424 +885,5 @@ int create_event(SDL_Event* evt, Uint32 custom_events_start, int code, Effect_ty
 	// Retorna se o evento foi enviado ou nao para a fila
 	return result;
 
-}
-
-// Desenha nota e atualiza tempo de vida da mesma
-//
-// Saida define qual tipo de nota foi expirada
-int draw_note(SDL_Renderer* renderer, Note* note){
-	int draw_note_result = INT_MIN;
-	if (!note->display_vector
-	||	note->is_finished){
-		goto RETORNA_DESENHO_NOTA;
-	}
-
-	if(note->display_vector[0].remaining_ticks < 0){
-		goto RETORNA_DESENHO_NOTA;
-	}
-
-	int click_timing;
-
-	switch(note->type){
-
-		case CLICK:
-		case MULTI_CLICK:
-			// Efeito de fade in
-			if((note->display_vector[0].remaining_ticks) > (note->display_vector[0].base_ticks/2)){
-
-				if( 255 < (note->display_vector[0].color.a + ( 255/(note->display_vector[0].base_ticks/2) ) ) ){
-					note->display_vector[0].color.a = 255;
-				}
-				else{
-					note->display_vector[0].color.a += ( 255/(note->display_vector[0].base_ticks/2) );
-				}
-			}
-
-			// Efeito de fade out
-			else{
-				if(note->display_vector[0].color.a > ( 255/(note->display_vector[0].base_ticks/2))){
-					note->display_vector[0].color.a -= ( 255/(note->display_vector[0].base_ticks/2) );
-				}
-				else{
-					note->display_vector[0].color.a = 0;
-				}
-			}
-
-			// Cria circulo exterior
-			click_timing = abs( (note->display_vector[0].base_ticks/2)-note->display_vector[0].remaining_ticks );
-
-			if ( click_timing <= (note->display_vector[0].base_ticks/20) ){  // 10% do tempo
-
-				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
-
-				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
-						0xFF, 0xFF, 0xFF, 0xFF);
-			}
-			else if ( click_timing < (note->display_vector[0].base_ticks/5) ){ // (40-10)% do tempo
-
-				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
-
-				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
-						0x00, 0x00, 0xFF, 0xFF);
-			}
-			else{
-				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
-
-				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
-						0xFF, 0x00, 0x00, 0xFF);
-			}
-
-			// Se ainda tem tempo, desenha
-			if(note->display_vector[0].remaining_ticks >=0){
-
-				filledCircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, note->display_vector[0].c.radius,
-						note->display_vector[0].color.r, note->display_vector[0].color.g, note->display_vector[0].color.b, note->display_vector[0].color.a);
-
-				// Atualiza tempo
-				--note->display_vector[0].remaining_ticks;
-				if(note->display_vector[0].remaining_ticks < 0 && note->type != MULTI_CLICK){
-					printf("\033[34mNota expirada! (-1 ponto)\033[0m\n");
-					draw_note_result = 0;
-				}
-			}
-			break;
-		case STRAIGHT_DRAG:
-			// Efeito de fade in
-			if((note->display_vector[0].remaining_ticks) > (note->display_vector[0].base_ticks/2)){
-
-				if( 255 < (note->display_vector[0].color.a + ( 255/(note->display_vector[0].base_ticks/2) ) ) ){
-
-					note->display_vector[0].color.a = 255;
-
-					note->display_vector[1].color.a = 255;
-
-					note->display_vector[2].color.a = 0x22;
-				}
-				else{
-					note->display_vector[0].color.a += ( 255/(note->display_vector[0].base_ticks/2) );
-					note->display_vector[1].color.a += ( 255/(note->display_vector[1].base_ticks/2) );
-					note->display_vector[2].color.a += ( 0x22/(note->display_vector[2].base_ticks/2) );
-
-
-				}
-
-			}
-			// Efeito de fade out
-			else{
-				if(note->display_vector[0].color.a > ( 255/(note->display_vector[0].base_ticks/2))){
-
-					note->display_vector[0].color.a -= ( 255/(note->display_vector[0].base_ticks/2) );
-
-					note->display_vector[1].color.a -= ( 255/(note->display_vector[1].base_ticks/2) );
-					note->display_vector[2].color.a -= ( 0x22/(note->display_vector[2].base_ticks/2) );
-				}
-				else{
-					note->display_vector[0].color.a = note->display_vector[2].color.a = note->display_vector[2].color.a = 0;
-				}
-			}
-
-			// Cria circulo exterior
-			click_timing = abs( (note->display_vector[0].base_ticks/2)-note->display_vector[0].remaining_ticks );
-
-			if ( click_timing <= (note->display_vector[0].base_ticks/10) ){  // 20% do tempo
-
-				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
-
-				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
-						0xFF, 0xFF, 0xFF, 0xFF);
-			}
-			else if ( click_timing < (note->display_vector[0].base_ticks/3) ){ // (66.6-20)% do tempo
-
-				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
-
-				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
-						0x00, 0x00, 0xFF, 0xFF);
-			}
-			else{
-				int external_circle_radius = note->display_vector[0].c.radius + click_timing;
-
-				aacircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, external_circle_radius,
-						0xFF, 0x00, 0x00, 0xFF);
-			}
-
-			// Se ainda tem tempo, desenha
-			if(note->display_vector[0].remaining_ticks >=0){
-
-				filledCircleRGBA(renderer, note->display_vector[0].x, note->display_vector[0].y, note->display_vector[0].c.radius,
-						note->display_vector[0].color.r, note->display_vector[0].color.g, note->display_vector[0].color.b, note->display_vector[0].color.a);
-
-				aalineRGBA(renderer, note->display_vector[1].x, note->display_vector[1].y, note->display_vector[1].s.x2, note->display_vector[1].s.y2,
-						note->display_vector[1].color.r, note->display_vector[1].color.g, note->display_vector[1].color.b, note->display_vector[1].color.a);
-
-				filledCircleRGBA(renderer, note->display_vector[2].x, note->display_vector[2].y, note->display_vector[2].c.radius,
-						note->display_vector[2].color.r, note->display_vector[2].color.g, note->display_vector[2].color.b, note->display_vector[2].color.a);
-
-
-				// Atualiza tempo
-				--note->display_vector[0].remaining_ticks;
-				note->display_vector[1].remaining_ticks = note->display_vector[2].remaining_ticks = note->display_vector[0].remaining_ticks;
-				if(note->display_vector[0].remaining_ticks < 0){
-					printf("\033[34mNota expirada! (-1 ponto)\033[0m\n");
-
-					draw_note_result = 1;
-				}
-
-			}
-			break;
-/*
-		case ARC_DRAG:
-			*
-			*
-			*
-			*      Desenha Arco
-			*
-			*
-			*
-			break;
-		case ROUND_DRAG:
-			*
-			*
-			*      Desenha circulo
-			*
-			*
-			*
-			break;
-*/
-	}
-
-RETORNA_DESENHO_NOTA:
-	return draw_note_result;
-}
-
-// Le partitura de um arquivo e retorna string constante
-//
-//	CUIDADO: garantir que partiture_string nao seja alocado dinamicamente antes da chamada. Senao, causa memory leak
-//
-void read_partiture(char* partiture_string, const char* partiture_name){
-
-	bool error_flag = false;
-
-	// Abre arquivo
-	FILE * file = fopen(partiture_name, "r");
-	if (!file){
-		printf("Erro ao abrir partitura!\n");
-		error_flag = true;
-		goto RETURN_PARTITURE;
-	}
-
-	// Pega tamanho
-	fseek(file, 0, SEEK_END);
-	long length = ftell(file);
-	rewind(file);
-
-
-	if(partiture_string){
-		partiture_string = NULL;
-	}
-
-
-	// Aloca partitura
-	// char = 1 byte, nao precisa de sizeof()
-	partiture_string = malloc(lenght+1);
-	if(!partiture_string){
-		perror("Erro ao alocar partitura!\n");
-		error_flag = true;
-                goto RETURN_PARTITURE;
-	}
-
-	// Le do txt para string
-	size_t read_length = fread(partiture_string, 1, length, file);
-	partiture_string[read_length] = '\0';
-
-RETURN_PARTITURE:
-	// Resolve casos de erro
-	if(error_flag){
-		if(partiture_string){
-			free(partiture_string);
-			partiture_string = NULL;
-		}
-	}
-
-	// Fecha arquivo
-	if(file){
-                fclose(file);
-        }
-}
-
-// Aloca partitura e enche usando uma string
-// Salva tamanho da partitura em partiture_size
-void parse_partiture(char* partiture_string, Note* partiture, int* partiture_size){
-
-	// Pega primeira linha
-	char* line = strtok(partiture_string, "\n");
-
-
-	// Deduz o numero de notas na partitura da primeira linha do txt
-	char* partiture_size_string = strdup(line);
-	*partiture_size = atoi(partiture_size_string);
-	free(partiture_size_string);
-
-	partiture = (Note*) malloc(sizeof(Note)* (*partiture_size));
-
-	// Atualiza linha
-	line = strtok(NULL, "\n");
-
-	Note* current_note = partiture[0];
-	// Entre em loop
-	while (*line){
-
-		char* first_char = line[0];
-		char* next_camp = strchr(line, ',');
-
-		// Pega campo contendo tipo de nota
-		char type_string[next_camp-line+1];
-		strncpy(type_string, line, next_camp-line);
-		type_string[next_camp-line] = '\0';
-
-		// Transforma tipo de nota de string para Note_type
-		Note_type type_number = (Note_type) atoi(type_string);
-
-		// Copia nota do array de templates
-		(*current_note) = note_template[type_number];
-		current_note->display_vector = NULL;
-		current_note->display_vector = (Note_display*) malloc( (note->size)* sizeof(Note_display));
-
-		++next_camp;
-		first_char = next_camp;
-
-		// Ajuda a deduzir o campo atual sendo lido
-		typedef enum{
-			TYPE,
-                	PARTITION,
-			START_TIME,
-			LIFE_TIME,
-			POSITION_X,
-			POSITION_Y,
-			COLOR_R,
-			COLOR_G,
-			COLOR_B,
-			COLOR_A,
-			TYPE_SPECIFIC,
-
-			MAX_CAMP	// Conta numero de campos validos
-                } Partiture_camp;
-
-                Partiture_camp camp_position = TYPE;
-		int type_specific_camp_position;
-
-		// Itera sobre cada campo presente na linha
-		while(next_camp = strpbrk(next_camp, ",\n")){
-			// Pega proximo campo
-			char camp_string[next_camp-first_char+1];
-			strncpy(camp_string, first_char, next_camp-first_char);
-                        camp_string[next_camp-first_char] = '\0';
-
-			int camp_integer = atoi(camp_string);
-
-			// Adiciona campo pego a nota, a partir da posicao do campo na linha lida
-			switch(camp_position){
-				case PARTITION:
-					current_note->display_vector[0].partition = camp_integer;
-					break;
-                        	case START_TIME:
-					current_note->display_vector[0].starting_tick = camp_integer;
-					break;
-				case LIFE_TIME:
-					current_note->display_vector[0].reamining_ticks = current_note->display_vector[0].base_ticks = camp_integer;
-					break;
-				case POSITION_X:
-					current_note->display_vector[0].x = current_note->display_vector[0].base_x = camp_integer;
-					break;
-				case POSITION_Y:
-					current_note->display_vector[0].y = current_note->display_vector[0].base_y = camp_integer;
-					break;
-				case COLOR_R:
-					current_note->display_vector[0].color.r = camp_integer;
-					break;
-				case COLOR_G:
-					current_note->display_vector[0].color.g = camp_integer;
-					break;
-				case COLOR_B:
-					current_note->display_vector[0].color.b = camp_integer;
-					break;
-				case COLOR_A:
-					current_note->display_vector[0].color.a = camp_integer;
-					break;
-				case TYPE_SPECIFIC:
-					switch(type_number){
-						case CLICK:
-						case MULTI_CLICK:
-							// raio
-							current_note->display_vector[0].c.radius = camp_integer;
-							break;
-						case STRAIGHT_DRAG:
-							switch(type_specific_camp_position){
-								case 0: // raio
-									current_note->display_vector[0].c.radius = current_note->display_vector[2].c.radius = camp_integer;
-								case 1:	// x2 (x final)
-									current_note->display_vector[2].x = camp_integer;
-									break;
-								case 2:	// y2 (y final)
-									current_note->display_vector[2].y = camp_integer;
-									break;
-							}
-					}
-			}
-
-			// Proximo campo
-			++next_camp;
-			first_char = next_camp;
-
-			if (camp_position < TYPE_SPECIFIC){
-                                ++camp_position;
-                        }
-		}
-
-		// Conserta ultimos detalhes por tipo
-		switch(type_number){
-			case CLICK:
-			case MULTI_CLICK:
-
-				/*
-                                 *
-                                 *      Ainda precisa truncar x e y caso passe dos limites da tela!
-                                 *
-                        	 */
-
-				break;
-			case STRAIGHT_DRAG:
-				// Cria linha reta entre os dois circulos
-				current_note->display_vector[1].x =  current_note->display_vector[0].x;
-				current_note->display_vector[1].y =  current_note->display_vector[0].y;
-				current_note->display_vector[1].s.x2 =  current_note->display_vector[2].x;
-				current_note->display_vector[1].s.y2 =  current_note->display_vector[2].y;
-
-				// Seta ponto inicial da reta
-				current_note->display_vector[1].base_x =  current_note->display_vector[1].x;
-				current_note->display_vector[1].base_y =  current_note->display_vector[1].y;
-
-				// Coloca alpha fixo para reta suporte 
-				current_note->display_vector[1].color.a = 0x44;
-
-				// Coloca alpha fixo para circulo suporte
-				current_note->display_vector[2].color.a = 0xFF;
-
-				/*
-				 *
-				 *	Ainda precisa truncar x e y caso passe dos limites da tela!
-				 *
-				 */
-
-				break;
-
-		}
-
-		// Proxima linha
-		line = strtok(NULL, "\n");
-
-		if (current_node < &partiture[partiture_size]){
-			++current_node;
-		}
-	}
 }
 

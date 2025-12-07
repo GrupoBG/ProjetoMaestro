@@ -2,9 +2,20 @@
 #define EFFECTS_H
 
 #include <SDL2/SDL.h>
-//#include <SDL_mixer.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_ttf.h>
+
+
+// Configuracao de tela
+#ifndef SCREEN_CONFIG
+#define PARTITION_WIDTH 300
+#define WINDOW_WIDTH 900
+#define WINDOW_HEIGHT 600
+#endif
+
+
+
+#define EFFECTS_ARRAY_SIZE 1000
 
 
 /*      Definicao de efeito     */
