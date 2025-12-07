@@ -2,9 +2,18 @@
 #define NOTES_H
 
 #include <SDL2/SDL.h>
-#include <SDL_mixer.h>
 #include <SDL2/SDL2_gfxPrimitives.h>
 #include <SDL2/SDL_ttf.h>
+
+
+// Configuracao de tela
+#ifndef SCREEN_CONFIG
+#define PARTITION_WIDTH 300
+#define WINDOW_WIDTH 900
+#define WINDOW_HEIGHT 600
+#endif
+
+#define NOTE_ARRAY_SIZE 100
 
 
 /*      Definicao de tipos de nota      */
@@ -63,11 +72,11 @@ typedef struct{
 
         Sint16 base_x, base_y;  // Posicao inicial na tela
 
-        int partition;      // Diz a qual particao o circulo pertence. partition<0 -> invalido
-        int starting_tick; // Diz quantos ticks de espera em relacao ao ultimo circulo
+        int partition;      // Diz a qual particao a parte de nota pertence. partition<0 -> invalido
+        int starting_tick; // Diz quantos ticks de espera em relacao a ultima nota
 
-        int base_ticks; // Diz quantidade de tempo que circulo deve ficar na tela em ticks
-        int remaining_ticks; // Diz quantos mais ticks o circulo tem na tela. remaining_ticks < 0 -> circulo expirado
+        int base_ticks; // Diz o tempo de vida total da nota
+        int remaining_ticks; // Diz quantos mais ticks a nota tem na tela. remaining_ticks < 0 -> nota expirada
 
         SDL_Color color;
 
@@ -98,14 +107,37 @@ typedef struct{
         int size;
         Note_display* display_vector;
 
-} Note
+} Note;
+
+
+extern Note note_array[NOTE_ARRAY_SIZE];
+
+extern int note_array_begin;
+extern int note_array_end;
+
+
+extern Note note_template[NOTE_NUMBER];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 // Usado para gerar partitura aleatoria
 //
 // Futuramente, menu principal entrega partitura pronta para jogo
-void generate_random_note(Note* note_template, Note* note);
+void generate_random_note(Note* note_template, Note* note, int total_partitions);
 
 // Checa se o mouse acertou a nota
 //
@@ -138,13 +170,11 @@ int draw_note(SDL_Renderer* renderer, Note* note);
 
 // Le partitura de um arquivo e retorna string constante
 //
-//      CUIDADO: garantir que partiture_string nao seja alocado dinamicamente antes da chamada. Senao, causa memory leak
-//
-void read_partiture(char* partiture_string, const char* partiture_name);
+char* read_partiture(const char* partiture_name);
 
 // Aloca partitura e enche usando uma string
 // Salva tamanho da partitura em partiture_size
-void parse_partiture(char* partiture_string, Note* partiture, int* partiture_size);
+Note* parse_partiture(char* partiture_string, int* partiture_size);
 
 
 #endif
