@@ -12,13 +12,13 @@
 
 #include "menu.h"
 
-#define SOUND_PATH "osu-hit-sound.wav"
+#define SOUND_PATH "osu-hit-sound.ogg"
 #define FONT_PATH_ITALIC "Libre_Baskerville/LibreBaskerville-Italic.ttf"
-#define MUSIC_PATH "Moonlight Sonata 1st Movement - Short Version (HD).wav"
+#define MUSIC_PATH "Bach 07 - Overture No. 1 - Passepied.ogg"
 
 #define PARTITION_WIDTH 500
-#define WINDOW_WIDTH 1500
-#define WINDOW_HEIGHT 900
+#define WINDOW_WIDTH 800
+#define WINDOW_HEIGHT 600
 
 #define EFFECTS_ARRAY_SIZE 1000
 #define CIRCLE_ARRAY_SIZE 100
@@ -130,22 +130,15 @@ AudioResources* init_audio() {
     audio->background_music = NULL;
     audio->hit_sound = NULL;
 
-    // Ultra-low latency settings para jogo de ritmo
-    if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 512) < 0) {
-        printf("Erro ao inicializar SDL_mixer: %s\n", Mix_GetError());
-        free(audio);
-        return NULL;
-    }
-
+    // Não inicializa Mix_OpenAudio aqui - já foi inicializado em main()
+    
     // Reduzir canais para melhor performance
-    Mix_AllocateChannels(2);
+    Mix_AllocateChannels(8);
     
     // Carregar efeitos sonoros
     audio->hit_sound = Mix_LoadWAV(SOUND_PATH);
     if (!audio->hit_sound) {
         printf("Erro ao carregar som: %s\n", Mix_GetError());
-        Mix_CloseAudio();
-        free(audio);
         return NULL;
     }
     
@@ -158,8 +151,6 @@ AudioResources* init_audio() {
     if (!audio->background_music) {
         printf("Erro ao carregar musica: %s\n", Mix_GetError());
         Mix_FreeChunk(audio->hit_sound);
-        Mix_CloseAudio();
-        free(audio);
         return NULL;
     }
 
@@ -179,7 +170,6 @@ void cleanup_audio(AudioResources* audio) {
             Mix_HaltMusic();
             Mix_FreeMusic(audio->background_music);
         }
-        Mix_CloseAudio();
         free(audio);
     }
 }
@@ -189,13 +179,15 @@ void update_audio_volumes(Mix_Chunk* hit_sound) {
     // Calcula o volume baseado na variável global (0-10 -> 0-MIX_MAX_VOLUME)
     int mixer_volume = (global_volume * SDL_MIX_MAXVOLUME) / 10;
     
-    // Atualiza volume de efeitos sonoros
+    // Apenas atualiza volume, sem reinicializar
     Mix_Volume(-1, mixer_volume);
+    
+    // Garante que hit_sound tem o mesmo volume (se fornecido)
     if (hit_sound) {
         Mix_VolumeChunk(hit_sound, mixer_volume);
     }
     
-    // Atualiza volume da musica de fundo (66% do volume do jogo)
+    // Atualiza volume da musica de fundo
     int music_volume = (global_volume * SDL_MIX_MAXVOLUME) / 15;
     Mix_VolumeMusic(music_volume);
     
@@ -204,7 +196,7 @@ void update_audio_volumes(Mix_Chunk* hit_sound) {
            (music_volume * 100) / SDL_MIX_MAXVOLUME);
 }
 
-int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, Mix_Chunk* hit_sound) {
+int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, Mix_Chunk* hit_sound, int* current_window_width, int* current_window_height) {
     int output = 0;
 
     int state = 1;
@@ -307,32 +299,40 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, 
     /*	Execucao	*/
     while (state) {
 
-    if(partiture_next >= partiture_size){
-                state = 0;
+        if(partiture_next >= partiture_size){
+            state = 0;
             break;
         }
 
-    // Tenta gerar novos circulos
-    if ( (next_note_tick <= tick_counter)
-    && (((circle_array_end + 1)%CIRCLE_ARRAY_SIZE) != circle_array_begin) ){
-                // Cria circulo
-                circle_array[circle_array_end] = partiture[partiture_next];
-                ++circle_array_end;
-                circle_array_end %= CIRCLE_ARRAY_SIZE;
-        // Atualiza proximo circulo na partitura
-                ++partiture_next;
-        // Atualiza proximo circulo na partitura e tempo da ultima nota
-                if (partiture_next < partiture_size) {
-                    next_note_tick = tick_counter + partiture[partiture_next].starting_tick;
-                }
+        // Tenta gerar novos circulos
+        if ( (next_note_tick <= tick_counter)
+        && (((circle_array_end + 1)%CIRCLE_ARRAY_SIZE) != circle_array_begin) ){
+            // Cria circulo
+            circle_array[circle_array_end] = partiture[partiture_next];
+            
+            // Clamp circle position to stay within window bounds
+            int partition_width = (*current_window_width) / 3;
+            if (circle_array[circle_array_end].x + circle_array[circle_array_end].radius > *current_window_width) {
+                circle_array[circle_array_end].x = *current_window_width - circle_array[circle_array_end].radius - 5;
+            }
+            if (circle_array[circle_array_end].y + circle_array[circle_array_end].radius > *current_window_height) {
+                circle_array[circle_array_end].y = *current_window_height - circle_array[circle_array_end].radius - 5;
+            }
+            
+            ++circle_array_end;
+            circle_array_end %= CIRCLE_ARRAY_SIZE;
+            ++partiture_next;
+            
+            if (partiture_next < partiture_size) {
+                next_note_tick = tick_counter + partiture[partiture_next].starting_tick;
+            }
 
+            printf("\033[0;32mCirculo criado! (espacos possiveis para novos circulo: %d )\033[0m\n",
+            ((circle_array_end-circle_array_begin)>=0)?(CIRCLE_ARRAY_SIZE-(circle_array_end-circle_array_begin)):CIRCLE_ARRAY_SIZE-(CIRCLE_ARRAY_SIZE-circle_array_begin+circle_array_end));
+        }
 
-                printf("\033[0;32mCirculo criado! (espacos possiveis para novos circulo: %d )\033[0m\n",
-    ((circle_array_end-circle_array_begin)>=0)?(CIRCLE_ARRAY_SIZE-(circle_array_end-circle_array_begin)):CIRCLE_ARRAY_SIZE-(CIRCLE_ARRAY_SIZE-circle_array_begin+circle_array_end));
-    }
-
-    // Tenta limpar circulos expirados do buffer
-    while (  (circle_array[circle_array_begin].remaining_ticks < 0) && (circle_array_begin != circle_array_end)){
+        // Tenta limpar circulos expirados do buffer
+        while (  (circle_array[circle_array_begin].remaining_ticks < 0) && (circle_array_begin != circle_array_end)){
 
                 ++circle_array_begin;
                 circle_array_begin %= CIRCLE_ARRAY_SIZE;
@@ -374,46 +374,45 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
+        for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%CIRCLE_ARRAY_SIZE)){
 
-    for(int i = circle_array_begin; i != circle_array_end; i=((i+1)%CIRCLE_ARRAY_SIZE)){
+            // Atualiza circulos com ticks
+            if(circle_array[i].remaining_ticks >=0){
 
-        // Atualiza circulos com ticks
-        if(circle_array[i].remaining_ticks >=0){
+                // Efeito de fade in
+                if((circle_array[i].remaining_ticks) > (circle_array[i].base_ticks/2)){
 
-            // Efeito de fade in
-            if((circle_array[i].remaining_ticks) > (circle_array[i].base_ticks/2)){
+                    if( 255 < (circle_array[i].color.a + ( 255/(circle_array[i].base_ticks/2) ) ) ){
+                        circle_array[i].color.a = 255;
+                    }
+                    else{
+                        circle_array[i].color.a += ( 255/(circle_array[i].base_ticks/2) );
+                    }
+                }
 
-                if( 255 < (circle_array[i].color.a + ( 255/(circle_array[i].base_ticks/2) ) ) ){
-                                        circle_array[i].color.a = 255;
-                                }
+                // Efeito de fade out
                 else{
-                    circle_array[i].color.a += ( 255/(circle_array[i].base_ticks/2) );
+                    if(circle_array[i].color.a > ( 255/(circle_array[i].base_ticks/2))){
+                        circle_array[i].color.a -= ( 255/(circle_array[i].base_ticks/2) );
+                    }
+                    else{
+                        circle_array[i].color.a = 0;
+                    }
                 }
-            }
 
-            // Efeito de fade out
-            else{
-                if(circle_array[i].color.a > ( 255/(circle_array[i].base_ticks/2))){
-                    circle_array[i].color.a -= ( 255/(circle_array[i].base_ticks/2) );
-                }
-                else{
-                    circle_array[i].color.a = 0;
-                }
-            }
+                // Cria circulo exterior
+                int click_timing = abs( (circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks );
 
-            // Cria circulo exterior
-            int click_timing = abs( (circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks );
+                if ( click_timing <= (circle_array[i].base_ticks/20) ){  // 10% do tempo
 
-            if ( click_timing <= (circle_array[i].base_ticks/20) ){  // 10% do tempo
-
-                int external_circle_radius = circle_array[i].radius + click_timing;
+                    int external_circle_radius = circle_array[i].radius + click_timing;
 
                                 aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
                         0xFF, 0xFF, 0xFF, 0xFF);
                         }
-            else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
+                else if ( click_timing < (circle_array[i].base_ticks/5) ){ // (40-10)% do tempo
                 
-                int external_circle_radius = circle_array[i].radius + click_timing;
+                    int external_circle_radius = circle_array[i].radius + click_timing;
 
                                 aacircleRGBA(renderer, circle_array[i].x, circle_array[i].y, external_circle_radius,
                         0x00, 0x00, 0xFF, 0xFF);
@@ -425,27 +424,33 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, 
                         0xFF, 0x00, 0x00, 0xFF);
                         }
 
-            --circle_array[i].remaining_ticks;
+                --circle_array[i].remaining_ticks;
 
 
-            if(circle_array[i].remaining_ticks >=0){
-                filledCircleRGBA(renderer, circle_array[i].x, circle_array[i].y, circle_array[i].radius,
-            circle_array[i].color.r, circle_array[i].color.g, circle_array[i].color.b, circle_array[i].color.a);
+                if(circle_array[i].remaining_ticks >=0){
+                    // Desenha apenas se dentro da janela
+                    if (circle_array[i].x - circle_array[i].radius >= 0 && 
+                        circle_array[i].x + circle_array[i].radius <= *current_window_width &&
+                        circle_array[i].y - circle_array[i].radius >= 0 && 
+                        circle_array[i].y + circle_array[i].radius <= *current_window_height) {
+                        
+                        filledCircleRGBA(renderer, circle_array[i].x, circle_array[i].y, circle_array[i].radius,
+                                circle_array[i].color.r, circle_array[i].color.g, circle_array[i].color.b, circle_array[i].color.a);
+                    }
+                }
+                else{
+                    printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
 
-            }
-            else{
-                printf("\033[34mCirculo expirado! (-1 ponto)\033[0m\n");
+                    multiplier = 1;
+                    int expired_circle_position[2] = {circle_array[i].x, circle_array[i].y};
 
-                multiplier = 1;
-                int expired_circle_position[2] = {circle_array[i].x, circle_array[i].y};
-
-                create_event(&event, custom_events_start, CLIQUE, CLIQUE_EXPIRADO, expired_circle_position);
-                                if (score > 0){
-                                        --score;
-                                }
+                    create_event(&event, custom_events_start, CLIQUE, CLIQUE_EXPIRADO, expired_circle_position);
+                    if (score > 0){
+                        --score;
+                    }
+                }
             }
         }
-    }
 
 
     // Efeitos
@@ -483,16 +488,17 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, 
     // Linhas
     SDL_SetRenderDrawColor(renderer, 0xFF,0xFF,0xFF,0xFF);
 
-    SDL_Rect line1 = {PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
-    SDL_Rect line2 = {2*PARTITION_WIDTH, 0, 1, WINDOW_HEIGHT};
+    int partition_width = (*current_window_width) / 3;
+    SDL_Rect line1 = {partition_width, 0, 1, *current_window_height};
+    SDL_Rect line2 = {2*partition_width, 0, 1, *current_window_height};
 
     SDL_RenderFillRect(renderer, &line1);
     SDL_RenderFillRect(renderer, &line2);
 
 
     //HUD
-    SDL_Rect score_framing = {(WINDOW_WIDTH-game_HUD.w)-20, 0, game_HUD.w, (game_HUD.h/2)};
-    SDL_Rect multiplier_framing = {(WINDOW_WIDTH-game_HUD.w)-20, (game_HUD.h/2), game_HUD.w, (game_HUD.h/2)};
+    SDL_Rect score_framing = {(*current_window_width-game_HUD.w)-20, 0, game_HUD.w, (game_HUD.h/2)};
+    SDL_Rect multiplier_framing = {(*current_window_width-game_HUD.w)-20, (game_HUD.h/2), game_HUD.w, (game_HUD.h/2)};
 
     SDL_RenderCopy(renderer, game_HUD.score, NULL, &score_framing);
     SDL_RenderCopy(renderer, game_HUD.multiplier, NULL, &multiplier_framing);
@@ -508,6 +514,13 @@ int run_game(SDL_Renderer* renderer, TTF_Font* fnt, Uint32 custom_events_start, 
         switch(event.type){
             case SDL_QUIT:
                     	state = 0; // Termina o jogo, volta ao menu
+                break;
+            case SDL_WINDOWEVENT:
+                if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    *current_window_width = event.window.data1;
+                    *current_window_height = event.window.data2;
+                    printf("Janela redimensionada para: %d x %d\n", *current_window_width, *current_window_height);
+                }
                 break;
         		case SDL_MOUSEBUTTONDOWN:
                 int circle_position[2] = {INT_MIN, INT_MIN};
@@ -636,18 +649,19 @@ int AUX_WaitEventTimeoutCount(SDL_Event* evt, Uint32* ms){
 
 // Gera circulo aleatorio
 void generate_random_circle(Circle* circle) {
-    circle->partition = rand() % 3;	// Define particao
+    circle->partition = rand() % 3;
 
+    circle->starting_tick = 15 + (rand() % 46);
 
-    circle->starting_tick = 15 + (rand() % 46);	// Circulo inicia entre [0,25s;1s]
-
-    circle-> base_ticks = 30 + (rand() % 31); // Circulos no intervalo de [0,5s;1s]
+    circle-> base_ticks = 30 + (rand() % 31);
 
     circle-> remaining_ticks = circle->base_ticks;
 
     circle->radius = rand() % 51 + 20; 
 
-    circle->x = circle->radius + (rand() % (PARTITION_WIDTH - 2*circle->radius)) + ( circle->partition* PARTITION_WIDTH);
+    // Usa WINDOW_WIDTH e WINDOW_HEIGHT como referência, mas será ajustado dinamicamente
+    int partition_width = WINDOW_WIDTH / 3;
+    circle->x = circle->radius + (rand() % (partition_width - 2*circle->radius)) + ( circle->partition* partition_width);
     circle->y = circle->radius + (rand() % (WINDOW_HEIGHT - 2*circle->radius));
 
     circle->color.r = rand() % 256;
@@ -669,7 +683,6 @@ int check_collision_circle(int* x, int* y, Mix_Chunk* hit_sound) {
 
     int output = CLIQUE_ERROU;
 
-
     for(int i = ((circle_array_end-1 + CIRCLE_ARRAY_SIZE)%CIRCLE_ARRAY_SIZE);
             			i != ((circle_array_begin-1 + CIRCLE_ARRAY_SIZE )%CIRCLE_ARRAY_SIZE);
                                         i=((i-1+ CIRCLE_ARRAY_SIZE)%CIRCLE_ARRAY_SIZE)){
@@ -679,8 +692,10 @@ int check_collision_circle(int* x, int* y, Mix_Chunk* hit_sound) {
     if( 	( (dx * dx + dy * dy) <= (circle_array[i].radius * circle_array[i].radius) )
         && (circle_array[i].remaining_ticks >= 0) ){
 
-        // Toca o som quando acerta
-        Mix_PlayChannel(-1, hit_sound, 0);
+        // Toca o som IMEDIATAMENTE quando acerta - sem delay
+        if (hit_sound) {
+            Mix_PlayChannel(-1, hit_sound, 0);
+        }
 
         int click_timing = abs((circle_array[i].base_ticks/2)-circle_array[i].remaining_ticks);
         
@@ -689,11 +704,9 @@ int check_collision_circle(int* x, int* y, Mix_Chunk* hit_sound) {
             if ( click_timing < (circle_array[i].base_ticks/20) ){	
                 output = CLIQUE_PERFEITO;
             }
-
             else if ( click_timing < (circle_array[i].base_ticks/5) ){ 
-                                output = CLIQUE_BOM;
-                        }
-
+                output = CLIQUE_BOM;
+            }
             else{
                 output = CLIQUE_RUIM;
             }
@@ -844,6 +857,9 @@ int main(int argc, char* argv[]) {
     int output = 0;
     int sdl_init_code = -1;
     int ttf_init_code = -1;
+    
+    int current_window_width = WINDOW_WIDTH;
+    int current_window_height = WINDOW_HEIGHT;
 
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
@@ -858,7 +874,7 @@ int main(int argc, char* argv[]) {
         goto FIM;
     }
 
-    window = SDL_CreateWindow("Prototipo 5",
+    window = SDL_CreateWindow("Projeto Maestro",
                                           SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
                                           WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
     if (!window) {
@@ -888,14 +904,12 @@ int main(int argc, char* argv[]) {
         goto FIM;
     }
 
-    // Inicialize o SDL_mixer após SDL_Init
-    if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 512) < 0) {
+    // Inicialize o SDL_mixer APENAS uma vez - ANTES de init_audio()
+    if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 256) < 0) {
         printf("Erro ao inicializar SDL_mixer: %s\n", Mix_GetError());
         output = -1;
         goto FIM;
     }
-
-    Mix_AllocateChannels(2); // Apenas 2 canais: música + hit sound
 
     /* Eventos custom */
     Uint32 custom_events_start = SDL_RegisterEvents(EVENTS_NUMBER);
@@ -905,7 +919,7 @@ int main(int argc, char* argv[]) {
         goto FIM;
     }
 
-    // Inicializa recursos de audio
+    // Inicializa recursos de audio DEPOIS de Mix_OpenAudio
     audio = init_audio();
     if (!audio) {
         printf("Erro ao inicializar recursos de audio\n");
@@ -921,20 +935,18 @@ int main(int argc, char* argv[]) {
         switch (current_state) {
             
             case STATE_MENU:
-                // Chama a função do menu.h, passando ponteiro para volume global
-                current_state = run_menu(renderer, fnt, WINDOW_WIDTH, WINDOW_HEIGHT, &global_volume);
-                // Atualiza volumes de áudio após retornar do menu
-                if (audio) {
-                    update_audio_volumes(audio->hit_sound);
-                }
+                // Obtém dimensões atuais da janela
+                SDL_GetWindowSize(window, &current_window_width, &current_window_height);
+                current_state = run_menu(renderer, fnt, current_window_width, current_window_height, &global_volume, window, &current_window_width, &current_window_height);
                 break;
                 
             case STATE_GAME:
                 // Inicia a musica quando o jogo começa
                 Mix_PlayMusic(audio->background_music, -1);
+                Mix_SetMusicPosition(0.0); // Garante que começa do início
     
-                // Chama a funcao do jogo
-                if (run_game(renderer, fnt, custom_events_start, audio->hit_sound) < 0) {
+                // Chama a funcao do jogo, passando os ponteiros de dimensão
+                if (run_game(renderer, fnt, custom_events_start, audio->hit_sound, &current_window_width, &current_window_height) < 0) {
                     // Jogo teve um erro
                     printf("Erro critico durante a execucao do jogo\n");
                     output = -1;
@@ -980,7 +992,9 @@ FIM:
             SDL_DestroyWindow(window);
     }
 
-     SDL_Quit();
+    Mix_CloseAudio(); // Fecha o mixer antes de SDL_Quit
+
+    SDL_Quit();
 
     /*	Retorna funcao */
     return output;
