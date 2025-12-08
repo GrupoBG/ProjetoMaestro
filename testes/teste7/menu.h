@@ -1,3 +1,5 @@
+//  gcc main.c -o main -lSDL2 -lSDL2_mixer -lSDL2_ttf -lSDL2_image -lSDL2_gfx -lm
+
 #ifndef MENU_H
 #define MENU_H
 
